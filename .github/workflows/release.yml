@@ -23,3 +23,10 @@ jobs:
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # electron-builder hat die Blockmap bei v0.2.0 nicht hochgeladen; ohne sie lädt der Updater
+      # jedes Mal das komplette Setup statt nur der geänderten Blöcke.
+      - name: Blockmap hochladen
+        shell: bash
+        run: gh release upload "$GITHUB_REF_NAME" dist/*.blockmap --clobber --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
