@@ -51,6 +51,11 @@
 
     <section id="history" class="view" hidden>
       <ul id="historyList" class="history-list"></ul>
+      <div id="historyPager" class="pager">
+        <button class="icon-btn subtle" data-dir="-1" title="Vorige Seite" aria-label="Vorige Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <span class="pager-label"></span>
+        <button class="icon-btn subtle" data-dir="1" title="Nächste Seite" aria-label="Nächste Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
       <p id="historyEmpty" class="muted empty">Noch keine Gespräche</p>
       <button id="clearHistory" class="text-btn" hidden>Verlauf löschen</button>
     </section>
@@ -64,6 +69,11 @@
         <button id="importBtn" class="text-btn" title="Kontakte importieren">Import</button>
       </div>
       <ul id="contactList" class="contact-list"></ul>
+      <div id="contactPager" class="pager">
+        <button class="icon-btn subtle" data-dir="-1" title="Vorige Seite" aria-label="Vorige Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <span class="pager-label"></span>
+        <button class="icon-btn subtle" data-dir="1" title="Nächste Seite" aria-label="Nächste Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
       <p id="contactsEmpty" class="muted empty"></p>
     </section>
 

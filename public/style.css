@@ -106,7 +106,15 @@ body { overflow: hidden; }
 
 /* Verlauf */
 #history { align-items: stretch; overflow: hidden; }
-.history-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.history-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+
+/* Blättern statt Scrollen (Verlauf, Telefonbuch) */
+.pager {
+  display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px;
+  color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.pager .icon-btn { width: 30px; height: 30px; font-size: 22px; }
+.pager .icon-btn:disabled { opacity: 0.3; cursor: default; background: transparent; }
 .entry { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .entry-dir { display: grid; font-size: 18px; color: var(--green); }
 .entry.out .entry-dir { color: var(--accent); }
@@ -119,7 +127,7 @@ body { overflow: hidden; }
 .entry-status { font-variant-numeric: tabular-nums; }
 .entry-call { color: var(--green); }
 .empty { margin-top: 48px; text-align: center; }
-#clearHistory { margin-top: 16px; align-self: center; }
+#clearHistory { margin-top: 10px; align-self: center; }
 
 /* Wähltastatur */
 .view { margin-top: 22px; display: flex; flex-direction: column; align-items: center; }
@@ -181,7 +189,7 @@ body { overflow: hidden; }
 }
 .contacts-bar input:focus { outline: none; border-color: var(--accent); }
 .contacts-bar .text-btn { padding: 8px 12px; }
-.contact-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.contact-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow: hidden; }
 .contact { padding: 10px 2px; border-bottom: 1px solid var(--line); }
 .contact-head { display: flex; align-items: center; gap: 12px; }
 .contact-avatar {

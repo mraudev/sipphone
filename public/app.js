@@ -219,6 +219,95 @@ async function saveAccount(e) {
   }
 }
 
+// --- Blättern statt Scrollen ---
+
+// Zeigt eine Liste seitenweise: pro Seite so viele Einträge, wie in den Platz passen (Einträge dürfen
+// unterschiedlich hoch sein). Das Mausrad blättert, bei Größenänderung wird neu aufgeteilt.
+class Pager {
+  constructor(list, bar) {
+    this.list = list;
+    this.bar = bar;
+    this.label = bar.querySelector('.pager-label');
+    this.prev = bar.querySelector('[data-dir="-1"]');
+    this.next = bar.querySelector('[data-dir="1"]');
+    this.page = 0;
+    this.pages = [];
+    this.wheelSum = 0;
+    this.wheelAt = 0;
+    this.prev.onclick = () => this.go(-1);
+    this.next.onclick = () => this.go(1);
+    list.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+    new ResizeObserver(() => this.layout()).observe(list);
+  }
+
+  show(items) {
+    this.list.replaceChildren(...items);
+    this.list.hidden = !items.length;
+    this.page = 0;
+    if (!items.length) {
+      // Ausgeblendete Liste hat keine Höhe, layout() würde abbrechen -> Seitenleiste hier verstecken
+      this.pages = [];
+      this.bar.style.visibility = 'hidden';
+      return;
+    }
+    this.layout();
+  }
+
+  layout() {
+    const space = this.list.clientHeight;
+    if (!space) return; // Reiter gerade nicht sichtbar – ResizeObserver meldet sich beim Einblenden
+    const items = [...this.list.children];
+    for (const item of items) item.hidden = false;
+    this.pages = [];
+    let page = [];
+    let used = 0;
+    for (const item of items) {
+      const height = item.offsetHeight;
+      if (page.length && used + height > space) {
+        this.pages.push(page);
+        page = [];
+        used = 0;
+      }
+      page.push(item);
+      used += height;
+    }
+    this.pages.push(page);
+    this.page = Math.min(this.page, this.pages.length - 1);
+    this.apply();
+  }
+
+  apply() {
+    this.pages.forEach((items, i) => items.forEach((item) => (item.hidden = i !== this.page)));
+    const count = this.pages.length;
+    this.bar.style.visibility = count > 1 && !this.list.hidden ? 'visible' : 'hidden'; // Platz bleibt reserviert
+    this.label.textContent = `Seite ${this.page + 1} von ${count}`;
+    this.prev.disabled = this.page === 0;
+    this.next.disabled = this.page === count - 1;
+  }
+
+  go(delta) {
+    const target = Math.max(0, Math.min(this.pages.length - 1, this.page + delta));
+    if (target === this.page) return;
+    this.page = target;
+    this.apply();
+  }
+
+  // Ein Radschritt = eine Seite. Touchpads liefern viele kleine Schritte: sammeln und kurz sperren.
+  onWheel(e) {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - this.wheelAt < 250) return;
+    this.wheelSum += e.deltaY;
+    if (Math.abs(this.wheelSum) < 40) return;
+    this.go(Math.sign(this.wheelSum));
+    this.wheelSum = 0;
+    this.wheelAt = now;
+  }
+}
+
+const historyPager = new Pager($('historyList'), $('historyPager'));
+const contactPager = new Pager($('contactList'), $('contactPager'));
+
 // --- Verlauf ---
 
 const ICON_PATHS = {
@@ -302,7 +391,7 @@ function describe(entry) {
 }
 
 function renderHistory() {
-  $('historyList').replaceChildren(...history.map((entry) => {
+  historyPager.show(history.map((entry) => {
     const failed = entry.status === 'missed' || entry.status === 'rejected';
     const li = el('li', `entry ${entry.direction}${failed ? ' failed' : ''}`);
     const dir = el('span', 'entry-dir');
@@ -336,7 +425,7 @@ function renderContacts() {
     || c.name.toLowerCase().includes(query)
     || (c.company || '').toLowerCase().includes(query)
     || (digits.length >= 3 && c.numbers.some((n) => n.dial.includes(digits))));
-  $('contactList').replaceChildren(...matches.map((c) => {
+  contactPager.show(matches.map((c) => {
     const li = el('li', 'contact');
     const head = el('div', 'contact-head');
     const who = el('div', 'entry-who');
