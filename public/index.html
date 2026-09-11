@@ -33,6 +33,7 @@
     <nav id="tabs" class="tabs">
       <button class="tab active" data-tab="dialer">Tastatur</button>
       <button class="tab" data-tab="history">Verlauf<span id="missedBadge" class="badge" hidden></span></button>
+      <button class="tab" data-tab="contacts">Kontakte</button>
     </nav>
 
     <section id="dialer" class="view">
@@ -52,6 +53,18 @@
       <ul id="historyList" class="history-list"></ul>
       <p id="historyEmpty" class="muted empty">Noch keine Gespräche</p>
       <button id="clearHistory" class="text-btn" hidden>Verlauf löschen</button>
+    </section>
+
+    <section id="contacts" class="view" hidden>
+      <div class="contacts-bar">
+        <input id="contactSearch" type="search" placeholder="Name oder Nummer" autocomplete="off" spellcheck="false">
+        <button id="addContact" class="icon-btn" title="Kontakt anlegen" aria-label="Kontakt anlegen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
+        <button id="importBtn" class="text-btn" title="Kontakte importieren">Import</button>
+      </div>
+      <ul id="contactList" class="contact-list"></ul>
+      <p id="contactsEmpty" class="muted empty"></p>
     </section>
 
     <section id="accountView" class="view" hidden>
@@ -148,6 +161,40 @@
       <div class="dialog-actions">
         <button type="button" id="reRegister" class="text-btn">Neu registrieren</button>
         <button value="close" class="text-btn primary">Fertig</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog">
+    <form method="dialog">
+      <h2>Kontakte importieren</h2>
+      <button type="button" id="importOutlook" class="import-option">
+        <strong>Aus Outlook übernehmen</strong>
+        <span class="muted small">Liest alle Kontaktordner direkt aus dem klassischen Outlook.</span>
+      </button>
+      <button type="button" id="importCsv" class="import-option">
+        <strong>CSV-Datei importieren</strong>
+        <span class="muted small">Neues Outlook / Outlook.com: Personen → Kontakte verwalten → Kontakte exportieren. Klassisches Outlook: Datei → Öffnen und exportieren → Importieren/Exportieren.</span>
+      </button>
+      <p class="muted small">Vorhandene Kontakte bleiben erhalten; bei gleichem Namen werden fehlende Nummern ergänzt.</p>
+      <p id="importError" class="reason" hidden></p>
+      <div class="dialog-actions"><span class="spacer"></span><button value="close" class="text-btn">Schließen</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="contactDialog">
+    <form id="contactForm" class="account-form" autocomplete="off">
+      <h2 id="contactTitle">Kontakt</h2>
+      <label>Name *<input name="name" required></label>
+      <label>Firma<input name="company"></label>
+      <div id="numberRows"></div>
+      <button type="button" id="addNumber" class="text-btn">+ Nummer</button>
+      <p id="contactError" class="reason" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" id="contactDelete" class="text-btn danger">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" id="contactCancel" class="text-btn">Abbrechen</button>
+        <button type="submit" class="text-btn primary">Speichern</button>
       </div>
     </form>
   </dialog>

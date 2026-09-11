@@ -7,6 +7,9 @@ const { autoUpdater } = require('electron-updater');
 const { loadConfig, saveConfig } = require('./config');
 const { SipUA } = require('./sip');
 const { CallHistory } = require('./history');
+const { Contacts, normalizeNumber } = require('./contacts');
+const { importOutlookContacts } = require('./outlook');
+const { readContactsCsv } = require('./csvimport');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const ICON = path.join(__dirname, '..', 'assets', 'icon.ico');
@@ -25,6 +28,7 @@ let tray = null;
 let cfg = null;
 let ua = null;
 let history = null;
+let contacts = null;
 let flashing = false;
 let quitting = false;
 let stopped = false;
@@ -96,6 +100,60 @@ function send(channel, data) {
   if (win && !win.isDestroyed()) win.webContents.send(channel, data);
 }
 
+// --- Telefonbuch: Namen aus dem Telefonbuch haben Vorrang vor dem Namen, den die Anlage schickt ---
+
+function withContactName(state) {
+  return state.call ? { ...state, call: { ...state.call, contactName: contacts.lookup(state.call.remoteUri) } } : state;
+}
+
+function historyView() {
+  return history.entries.map((e) => ({ ...e, contactName: contacts.lookup(e.remoteUri) }));
+}
+
+function contactsView() {
+  return contacts.entries.map((c) => ({ ...c, numbers: c.numbers.map((n) => ({ ...n, dial: normalizeNumber(n.number) })) }));
+}
+
+function contactsChanged() {
+  send('phone:contactsChanged', contactsView());
+  send('phone:historyChanged', historyView());
+  if (ua.call) ua.emitState();
+}
+
+function mergeImported(found, source) {
+  const result = contacts.merge(found, source);
+  contactsChanged();
+  return { ...result, found: found.length };
+}
+
+async function importOutlook() {
+  try {
+    const found = await importOutlookContacts();
+    if (!found.length) {
+      return { error: 'Im klassischen Outlook wurden keine Kontakte mit Telefonnummer gefunden. Liegen sie im neuen Outlook oder bei Outlook.com, dort als CSV exportieren und die Datei importieren.' };
+    }
+    return mergeImported(found, 'outlook');
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function importCsv() {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Kontakte-CSV wählen',
+    filters: [{ name: 'CSV-Dateien', extensions: ['csv', 'txt'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const found = readContactsCsv(res.filePaths[0]);
+    if (!found.length) return { error: 'In der Datei wurden keine Kontakte mit Telefonnummer gefunden.' };
+    return mergeImported(found, 'csv');
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // Bei eingehendem Anruf Fenster hervorholen (auch aus dem Tray) und in der Taskleiste blinken lassen.
 function attention(call) {
   if (!win) return;
@@ -116,9 +174,10 @@ function attention(call) {
 function showCallToast(call) {
   if (!Notification.isSupported()) return;
   const number = call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
+  const name = call.contactName || call.remoteName;
   callToast = new Notification({
     title: 'Eingehender Anruf',
-    body: call.remoteName ? `${call.remoteName} (${number})` : number,
+    body: name ? `${name} (${number})` : number,
     icon: ICON_PNG,
     silent: true, // Klingelton spielt die App selbst auf dem gewählten Klingelgerät
     timeoutType: 'never',
@@ -146,7 +205,7 @@ function closeCallToast() {
 
 function notifyMissed(entry) {
   if (!Notification.isSupported() || (win && win.isVisible() && win.isFocused())) return;
-  const body = entry.remoteName || entry.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
+  const body = contacts.lookup(entry.remoteUri) || entry.remoteName || entry.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
   const n = new Notification({ title: 'Verpasster Anruf', body, icon: ICON_PNG });
   n.on('click', () => {
     showWindow();
@@ -312,8 +371,10 @@ if (!app.requestSingleInstanceLock()) {
       }
     }
     history = new CallHistory(app.getPath('userData'));
+    contacts = new Contacts(app.getPath('userData'));
     ua = new SipUA(cfg);
-    ua.on('state', (s) => {
+    ua.on('state', (raw) => {
+      const s = withContactName(raw);
       send('phone:state', s);
       attention(s.call);
       updateTray(s);
@@ -321,12 +382,12 @@ if (!app.requestSingleInstanceLock()) {
     ua.on('ended', (reason, call) => {
       send('phone:ended', reason);
       const entry = history.add(reason, call);
-      send('phone:historyChanged', history.entries);
+      send('phone:historyChanged', historyView());
       if (entry.status === 'missed') notifyMissed(entry);
     });
     ua.on('audio', (pcm) => send('phone:audio', pcm));
 
-    ipcMain.handle('phone:state', () => ua.snapshot());
+    ipcMain.handle('phone:state', () => withContactName(ua.snapshot()));
     ipcMain.handle('phone:command', (_e, msg) => runCommand(msg));
     ipcMain.on('phone:audio', (_e, pcm) => ua.pushAudio(pcm));
     ipcMain.handle('phone:getAudio', () => cfg.audio);
@@ -342,11 +403,27 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:version', () => app.getVersion());
     ipcMain.handle('phone:getUpdate', () => updateReady);
     ipcMain.handle('phone:installUpdate', () => installUpdate());
-    ipcMain.handle('phone:history', () => history.entries);
+    ipcMain.handle('phone:history', () => historyView());
     ipcMain.handle('phone:clearHistory', () => {
       history.clear();
-      send('phone:historyChanged', history.entries);
+      send('phone:historyChanged', historyView());
     });
+    ipcMain.handle('phone:contacts', () => contactsView());
+    ipcMain.handle('phone:saveContact', (_e, data) => {
+      try {
+        contacts.upsert(data);
+        contactsChanged();
+        return null;
+      } catch (err) {
+        return { error: err.message };
+      }
+    });
+    ipcMain.handle('phone:deleteContact', (_e, id) => {
+      contacts.remove(id);
+      contactsChanged();
+    });
+    ipcMain.handle('phone:importOutlook', () => importOutlook());
+    ipcMain.handle('phone:importCsv', () => importCsv());
 
     createTray();
     createWindow();

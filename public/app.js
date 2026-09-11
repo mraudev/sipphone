@@ -18,7 +18,9 @@ let muted = false;
 let audioCfg = { microphone: '', speaker: '', ringer: '' }; // Gerätenamen aus config.json
 let devices = [];
 let history = [];
+let contacts = []; // Telefonbuch; jede Nummer hat zusätzlich "dial" (wählbare Form)
 let activeTab = 'dialer';
+let editingContactId = null;
 let ringtone = null; // { name, buffer } – eigener Klingelton, null = eingebaute Melodie
 let account = null; // { displayName, username, domain, ..., hasCredentials }
 let editingAccount = false;
@@ -52,12 +54,13 @@ function render() {
   $('tabs').hidden = !!call || setup;
   $('dialer').hidden = !!call || setup || activeTab !== 'dialer';
   $('history').hidden = !!call || setup || activeTab !== 'history';
+  $('contacts').hidden = !!call || setup || activeTab !== 'contacts';
   $('callView').hidden = !call;
   $('callBtn').disabled = reg.state !== 'registered';
 
   if (call) {
     const user = call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
-    const name = call.remoteName || user;
+    const name = call.contactName || call.remoteName || user;
     $('callName').textContent = name;
     $('callUri').textContent = call.remoteUri.replace(/^(sips?|tel):/i, '');
     $('initials').textContent = initials(name);
@@ -222,6 +225,8 @@ const ICON_PATHS = {
   out: 'M9 5v2h6.59L4 18.59 5.41 20 17 8.41V15h2V5z',
   in: 'M20 5.41 18.59 4 7 15.59V9H5v10h10v-2H8.41z',
   missed: 'M19.59 7 12 14.59 6.41 9H11V7H3v8h2v-4.59l7 7 9-9z',
+  edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+  close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
   phone: 'M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z',
 };
 
@@ -303,8 +308,9 @@ function renderHistory() {
     const dir = el('span', 'entry-dir');
     dir.append(svgIcon(entry.direction === 'out' ? ICON_PATHS.out : failed ? ICON_PATHS.missed : ICON_PATHS.in));
     const number = shortUri(entry.remoteUri);
+    const name = entry.contactName || entry.remoteName;
     const who = el('div', 'entry-who');
-    who.append(el('b', '', entry.remoteName || number), el('small', 'muted', entry.remoteName ? number : ''));
+    who.append(el('b', '', name || number), el('small', 'muted', name ? number : ''));
     const meta = el('div', 'entry-meta');
     meta.append(el('small', 'muted', formatWhen(entry.at)), el('small', 'entry-status', describe(entry)));
     const callBack = el('button', 'icon-btn entry-call');
@@ -317,6 +323,127 @@ function renderHistory() {
   $('historyEmpty').hidden = history.length > 0;
   $('clearHistory').hidden = history.length === 0;
   renderBadge();
+}
+
+// --- Telefonbuch ---
+
+const NUMBER_LABELS = ['Geschäftlich', 'Mobil', 'Privat', 'Firma', 'Weitere'];
+
+function renderContacts() {
+  const query = $('contactSearch').value.trim().toLowerCase();
+  const digits = query.replace(/\D/g, '');
+  const matches = contacts.filter((c) => !query
+    || c.name.toLowerCase().includes(query)
+    || (c.company || '').toLowerCase().includes(query)
+    || (digits.length >= 3 && c.numbers.some((n) => n.dial.includes(digits))));
+  $('contactList').replaceChildren(...matches.map((c) => {
+    const li = el('li', 'contact');
+    const head = el('div', 'contact-head');
+    const who = el('div', 'entry-who');
+    who.append(el('b', '', c.name), el('small', 'muted', c.company || ''));
+    const edit = el('button', 'icon-btn subtle');
+    edit.title = 'Bearbeiten';
+    edit.append(svgIcon(ICON_PATHS.edit));
+    edit.onclick = () => openContactDialog(c);
+    head.append(el('span', 'contact-avatar', initials(c.name)), who, edit);
+    const numbers = el('div', 'contact-numbers');
+    for (const n of c.numbers) {
+      const row = el('button', 'contact-number');
+      row.title = `${n.number} anrufen`;
+      row.append(el('small', 'muted', n.label || 'Telefon'), el('span', '', n.number), svgIcon(ICON_PATHS.phone));
+      row.onclick = () => send({ type: 'dial', target: n.dial });
+      numbers.append(row);
+    }
+    li.append(head, numbers);
+    return li;
+  }));
+  $('contactsEmpty').hidden = matches.length > 0;
+  $('contactsEmpty').textContent = contacts.length
+    ? 'Keine Treffer'
+    : 'Noch keine Kontakte. Mit „Outlook“ importieren oder mit + anlegen.';
+}
+
+function addNumberRow(label = NUMBER_LABELS[0], number = '') {
+  const row = el('div', 'number-edit');
+  const select = document.createElement('select');
+  for (const l of NUMBER_LABELS.includes(label) ? NUMBER_LABELS : [...NUMBER_LABELS, label]) select.append(new Option(l, l));
+  select.value = label;
+  const input = document.createElement('input');
+  input.type = 'tel';
+  input.placeholder = 'Nummer';
+  input.value = number;
+  const remove = el('button', 'icon-btn subtle');
+  remove.type = 'button';
+  remove.title = 'Nummer entfernen';
+  remove.append(svgIcon(ICON_PATHS.close));
+  remove.onclick = () => row.remove();
+  row.append(select, input, remove);
+  $('numberRows').append(row);
+}
+
+function openContactDialog(contact = null) {
+  const form = $('contactForm');
+  editingContactId = contact ? contact.id : null;
+  form.elements.namedItem('name').value = contact ? contact.name : '';
+  form.elements.namedItem('company').value = contact ? contact.company || '' : '';
+  $('numberRows').replaceChildren();
+  if (contact) contact.numbers.forEach((n) => addNumberRow(n.label, n.number));
+  else addNumberRow();
+  $('contactTitle').textContent = contact ? 'Kontakt bearbeiten' : 'Neuer Kontakt';
+  $('contactDelete').hidden = !contact;
+  $('contactError').hidden = true;
+  $('contactDialog').showModal();
+}
+
+async function saveContact(e) {
+  e.preventDefault();
+  const form = $('contactForm');
+  const numbers = [...$('numberRows').children].map((row) => ({
+    label: row.querySelector('select').value,
+    number: row.querySelector('input').value,
+  }));
+  const res = await window.phone.saveContact({
+    id: editingContactId,
+    name: form.elements.namedItem('name').value,
+    company: form.elements.namedItem('company').value,
+    numbers,
+  });
+  if (res && res.error) {
+    $('contactError').textContent = res.error;
+    $('contactError').hidden = false;
+    return;
+  }
+  $('contactDialog').close();
+}
+
+async function deleteContact() {
+  if (!editingContactId || !confirm('Kontakt wirklich löschen?')) return;
+  await window.phone.deleteContact(editingContactId);
+  $('contactDialog').close();
+}
+
+function openImportDialog() {
+  $('importError').hidden = true;
+  $('importDialog').showModal();
+}
+
+async function runImport(kind) {
+  const buttons = [$('importOutlook'), $('importCsv')];
+  buttons.forEach((b) => (b.disabled = true));
+  $('importError').hidden = true;
+  try {
+    const res = kind === 'outlook' ? await window.phone.importOutlook() : await window.phone.importCsv();
+    if (!res) return; // Dateiauswahl abgebrochen
+    if (res.error) {
+      $('importError').textContent = res.error; // im Dialog, ein Toast läge hinter dem Dialog
+      $('importError').hidden = false;
+      return;
+    }
+    $('importDialog').close();
+    toast(`${res.found} Kontakte gelesen – ${res.added} neu, ${res.updated} ergänzt`);
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+  }
 }
 
 // --- Audio ---
@@ -641,6 +768,15 @@ $('updateBtn').onclick = async () => {
   if (res && res.error) toast(res.error, true);
 };
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
+$('contactSearch').oninput = renderContacts;
+$('addContact').onclick = () => openContactDialog();
+$('importBtn').onclick = openImportDialog;
+$('importOutlook').onclick = () => runImport('outlook');
+$('importCsv').onclick = () => runImport('csv');
+$('addNumber').onclick = () => addNumberRow();
+$('contactForm').onsubmit = saveContact;
+$('contactCancel').onclick = () => $('contactDialog').close();
+$('contactDelete').onclick = deleteContact;
 $('accountForm').onsubmit = saveAccount;
 $('accountCancel').onclick = () => {
   editingAccount = false;
@@ -680,6 +816,10 @@ window.phone.onHistory((entries) => {
   renderHistory();
 });
 window.phone.onShowHistory(() => setTab('history'));
+window.phone.onContacts((list) => {
+  contacts = list;
+  renderContacts();
+});
 window.phone.onUpdate((version) => {
   updateVersion = version;
   render();
@@ -706,5 +846,7 @@ window.phone.onAudio((pcm) => {
   if (!accountConfigured()) showAccountForm();
   history = await window.phone.getHistory();
   renderHistory();
+  contacts = await window.phone.getContacts();
+  renderContacts();
   render();
 })();

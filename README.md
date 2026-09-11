@@ -12,6 +12,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
+- **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
@@ -70,6 +71,7 @@ Alles liegt unter `%APPDATA%\SIP Phone\`:
 
 - `config.json` – Konto, Audiogeräte, Klingelton. Das Passwort wird nur verschlüsselt gespeichert (Windows DPAPI).
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)
+- `contacts.json` – Telefonbuch
 - `ringtone.*` – Kopie des eigenen Klingeltons
 
 Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\linphonerc` und übernimmt Konto und Audiogeräte. Ohne Linphone erscheint das Formular *SIP-Konto einrichten*.
@@ -82,7 +84,7 @@ Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\li
   - chan_sip: `sendrpid=pai` (oder `yes`), optional `rpid_update=yes`
   - PJSIP: `send_pai=yes` (oder `send_rpid=yes`)
   - FreePBX: bei der Nebenstelle *Send RPID* → *Send P-Asserted-Identity header*
-- **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden.
+- **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden – oder die Nummer steht im Telefonbuch, dessen Name dann Vorrang hat.
 
 ## Einschränkungen
 
