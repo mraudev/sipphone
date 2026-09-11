@@ -1,4 +1,4 @@
-# Baut bei einem Versions-Tag (z.B. v0.2.0) Setup + Portable-exe und veröffentlicht sie als GitHub-Release.
+# Baut bei einem Versions-Tag (z.B. v1.0.0) Setup + Portable-exe und veröffentlicht sie als GitHub-Release.
 # Die installierten Apps finden das Release über electron-updater (latest.yml) und aktualisieren sich.
 name: Release
 
@@ -19,14 +19,20 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build und Release veröffentlichen
-        run: npx electron-builder --win --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      # electron-builder hat die Blockmap bei v0.2.0 nicht hochgeladen; ohne sie lädt der Updater
-      # jedes Mal das komplette Setup statt nur der geänderten Blöcke.
-      - name: Blockmap hochladen
+      - name: Build
+        run: npx electron-builder --win --publish never
+      # Genau ein Release pro Tag selbst anlegen. electron-builder lädt die Dateien parallel hoch und hat
+      # dabei zwei Releases zum selben Tag erzeugt (eins nur mit der Blockmap) – der Updater bekam dann
+      # für latest.yml ein 404. Vorhandene Releases zum Tag (z.B. von einem früheren Lauf) werden ersetzt.
+      - name: Release veröffentlichen
         shell: bash
-        run: gh release upload "$GITHUB_REF_NAME" dist/*.blockmap --clobber --repo "$GITHUB_REPOSITORY"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="$GITHUB_REF_NAME"
+          while gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; do
+            gh release delete "$tag" --yes --repo "$GITHUB_REPOSITORY"
+          done
+          gh release create "$tag" \
+            dist/SIP-Phone-Setup-*.exe dist/SIP-Phone-Setup-*.exe.blockmap dist/SIP-Phone-*-portable.exe dist/latest.yml \
+            --title "$tag" --generate-notes --repo "$GITHUB_REPOSITORY"
