@@ -1,0 +1,25 @@
+# Baut bei einem Versions-Tag (z.B. v0.2.0) Setup + Portable-exe und veröffentlicht sie als GitHub-Release.
+# Die installierten Apps finden das Release über electron-updater (latest.yml) und aktualisieren sich.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build und Release veröffentlichen
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

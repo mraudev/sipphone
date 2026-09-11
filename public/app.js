@@ -22,6 +22,7 @@ let activeTab = 'dialer';
 let ringtone = null; // { name, buffer } – eigener Klingelton, null = eingebaute Melodie
 let account = null; // { displayName, username, domain, ..., hasCredentials }
 let editingAccount = false;
+let updateVersion = null; // heruntergeladenes Update, wartet auf Neustart
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -44,6 +45,8 @@ function render() {
   $('accServer').textContent = reg.server || '–';
 
   const call = state.call;
+  $('updateBar').hidden = !updateVersion || !!call; // nie mitten im Gespräch
+  $('updateVersion').textContent = updateVersion || '';
   const setup = !call && (!accountConfigured() || editingAccount);
   $('accountView').hidden = !setup;
   $('tabs').hidden = !!call || setup;
@@ -572,6 +575,10 @@ $('backspace').onclick = () => ($('number').value = $('number').value.slice(0, -
 $('answerBtn').onclick = () => send({ type: 'answer' });
 $('hangupBtn').onclick = () => send({ type: 'hangup' });
 $('muteBtn').onclick = () => setMuted(!muted);
+$('updateBtn').onclick = async () => {
+  const res = await window.phone.installUpdate();
+  if (res && res.error) toast(res.error, true);
+};
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
 $('accountForm').onsubmit = saveAccount;
 $('accountCancel').onclick = () => {
@@ -612,6 +619,10 @@ window.phone.onHistory((entries) => {
   renderHistory();
 });
 window.phone.onShowHistory(() => setTab('history'));
+window.phone.onUpdate((version) => {
+  updateVersion = version;
+  render();
+});
 window.phone.onAudio((pcm) => {
   if (!audio) return;
   const copy = pcm.slice();
@@ -629,6 +640,8 @@ window.phone.onAudio((pcm) => {
   }
   state = await window.phone.getState();
   account = await window.phone.getAccount();
+  updateVersion = await window.phone.getUpdate();
+  $('appVersion').textContent = await window.phone.getVersion();
   if (!accountConfigured()) showAccountForm();
   history = await window.phone.getHistory();
   renderHistory();

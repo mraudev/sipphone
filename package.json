@@ -1,7 +1,7 @@
 {
   "name": "sipphone",
   "productName": "SIP Phone",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "SIP-Softphone als Desktop-App",
   "author": "Michael Rau",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "icon": "electron scripts/make-icon.js",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win --publish never"
   },
   "build": {
     "appId": "de.rau.sipphone",
@@ -23,6 +23,14 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "mraudev",
+        "repo": "sipphone",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
@@ -39,12 +47,21 @@
       "shortcutName": "SIP Phone",
       "uninstallDisplayName": "SIP Phone",
       "runAfterFinish": true,
-      "installerLanguages": ["de_DE"],
-      "language": "1031"
+      "installerLanguages": [
+        "de_DE"
+      ],
+      "language": "1031",
+      "artifactName": "SIP-Phone-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "SIP-Phone-${version}-portable.${ext}"
     }
   },
   "devDependencies": {
     "electron": "^44.3.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

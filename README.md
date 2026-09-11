@@ -52,6 +52,17 @@ $env:SIP_TRACE='1'; npm start
 | `src/config.js`, `src/history.js` | Einstellungen (inkl. Linphone-Import) und Gesprächsverlauf |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf 8-kHz-Telefonaudio um |
 
+## Updates
+
+Die installierte App prüft beim Start und alle 4 Stunden, ob es auf GitHub ein neueres [Release](https://github.com/mraudev/sipphone/releases) gibt, und lädt es im Hintergrund. Danach erscheint *Update bereit – Neu starten* (nie während eines Gesprächs); ohne Klick wird das Update beim nächsten Beenden installiert. Die Portable-exe aktualisiert sich nicht selbst.
+
+Neue Version veröffentlichen:
+
+```bash
+npm version 0.3.0          # Version in package.json erhöhen, Commit + Tag v0.3.0
+git push --follow-tags     # GitHub Actions baut und veröffentlicht das Release
+```
+
 ## Einstellungen und Daten
 
 Alles liegt unter `%APPDATA%\SIP Phone\`:

@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { loadConfig, saveConfig } = require('./config');
 const { SipUA } = require('./sip');
 const { CallHistory } = require('./history');
@@ -29,6 +30,9 @@ let quitting = false;
 let stopped = false;
 let trayHintShown = false;
 let callToast = null;
+let updateReady = null; // Version eines heruntergeladenen Updates
+
+const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -242,6 +246,34 @@ function ringtoneData() {
   }
 }
 
+// Updates kommen aus den GitHub-Releases (build.publish in package.json). Nur in der installierten App.
+function setupUpdater() {
+  if (!app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('update-available', (info) => console.log(`Update ${info.version} verfügbar, lade herunter …`));
+  autoUpdater.on('update-not-available', () => console.log('Kein Update verfügbar'));
+  autoUpdater.on('update-downloaded', (info) => {
+    updateReady = info.version;
+    console.log(`Update ${info.version} bereit`);
+    send('phone:update', updateReady);
+  });
+  autoUpdater.on('error', (err) => console.error('Update-Fehler:', err.message));
+  const check = () => autoUpdater.checkForUpdates().catch(() => {}); // Fehler meldet das 'error'-Event
+  check();
+  setInterval(check, UPDATE_INTERVAL_MS);
+}
+
+async function installUpdate() {
+  if (!updateReady) return null;
+  if (ua.call) return { error: 'Bitte erst das Gespräch beenden.' };
+  quitting = true;
+  await ua.stop(); // sauber abmelden, bevor der Installer die App beendet
+  stopped = true;
+  autoUpdater.quitAndInstall(true, true); // still installieren, danach neu starten
+  return null;
+}
+
 async function runCommand(msg) {
   try {
     if (msg.type === 'dial') await ua.dial(String(msg.target || ''));
@@ -306,6 +338,9 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:getRingtone', () => ringtoneData());
     ipcMain.handle('phone:chooseRingtone', () => chooseRingtone());
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
+    ipcMain.handle('phone:version', () => app.getVersion());
+    ipcMain.handle('phone:getUpdate', () => updateReady);
+    ipcMain.handle('phone:installUpdate', () => installUpdate());
     ipcMain.handle('phone:history', () => history.entries);
     ipcMain.handle('phone:clearHistory', () => {
       history.clear();
@@ -315,6 +350,7 @@ if (!app.requestSingleInstanceLock()) {
     createTray();
     createWindow();
     await ua.start();
+    setupUpdater();
   });
 
   // Vor dem Beenden sauber beim Server abmelden.

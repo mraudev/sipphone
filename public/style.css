@@ -69,6 +69,15 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 
 .reason { margin: 8px 2px 0; color: #fca5a5; font-size: 13px; }
 
+.update-bar {
+  margin-top: 10px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 8px 8px 14px; border-radius: 12px;
+  background: rgba(91, 140, 255, 0.14); border: 1px solid rgba(91, 140, 255, 0.35);
+  font-size: 13px;
+}
+.update-bar .text-btn { padding: 6px 12px; }
+
 @keyframes blink { 50% { opacity: 0.3; } }
 
 /* Reiter */

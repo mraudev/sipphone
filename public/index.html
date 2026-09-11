@@ -25,6 +25,10 @@
       <span class="status-aor"></span>
     </button>
     <p id="regReason" class="reason" hidden></p>
+    <div id="updateBar" class="update-bar" hidden>
+      <span>Update auf <b id="updateVersion"></b> ist bereit</span>
+      <button id="updateBtn" class="text-btn primary">Neu starten</button>
+    </div>
 
     <nav id="tabs" class="tabs">
       <button class="tab active" data-tab="dialer">Tastatur</button>
@@ -133,6 +137,7 @@
       <div class="account">
         <div><span class="muted small">Konto</span><span id="accAor"></span></div>
         <div><span class="muted small">Server</span><span id="accServer"></span></div>
+        <div><span class="muted small">Version</span><span id="appVersion"></span></div>
         <button type="button" id="editAccount" class="text-btn">Konto bearbeiten</button>
       </div>
       <div class="dialog-actions">
