@@ -720,6 +720,26 @@ class SipUA extends EventEmitter {
     if (this.call) this.call.rtp.pushMic(pcm);
   }
 
+  // Tastentöne: RFC 4733 im RTP-Strom, wenn telephone-event ausgehandelt ist, sonst SIP INFO.
+  sendDtmf(digit) {
+    const call = this.call;
+    if (!call || call.state !== 'active' || !/^[0-9*#A-D]$/.test(digit)) return;
+    if (call.dtmfPt !== undefined && call.dtmfPt !== null) {
+      call.rtp.sendDtmf(digit, call.dtmfPt);
+      return;
+    }
+    const req = this.buildRequest('INFO', call.remoteTarget, {
+      callId: call.callId,
+      from: call.local,
+      to: call.remote,
+      cseq: ++call.cseq,
+      route: call.routeSet,
+      body: `Signal=${digit}\r\nDuration=100\r\n`,
+      contentType: 'application/dtmf-relay',
+    });
+    this.sendRequest(req, () => {});
+  }
+
   // --- Eingehende Requests ---
 
   respond(req, rinfo, status, reason, { toTag, contact, body, contentType, extra = [] } = {}) {

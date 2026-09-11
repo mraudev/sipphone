@@ -279,6 +279,7 @@ async function runCommand(msg) {
     if (msg.type === 'dial') await ua.dial(String(msg.target || ''));
     else if (msg.type === 'answer') ua.answer();
     else if (msg.type === 'hangup') ua.hangup();
+    else if (msg.type === 'dtmf') ua.sendDtmf(String(msg.digit || ''));
     else if (msg.type === 'register') await ua.register();
     return null;
   } catch (err) {

@@ -64,10 +64,15 @@ function render() {
     $('avatar').classList.toggle('ringing', call.state === 'incoming' || call.state === 'ringing' || call.state === 'calling');
     $('answerBtn').hidden = call.state !== 'incoming';
     $('muteBtn').hidden = call.state !== 'active';
+    $('keypadBtn').hidden = call.state !== 'active';
+    if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
     document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'SIP Phone';
   } else {
     document.title = 'SIP Phone';
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
+    if (dtmfOpen) setDtmfOpen(false);
+    $('dtmfDigits').textContent = '';
+    $('dtmfDigits').hidden = true;
   }
   updateCallStatus();
   updateAudio();
@@ -106,19 +111,61 @@ function toast(text, error = false) {
   toastTimer = setTimeout(() => (el.hidden = true), 3500);
 }
 
-function buildKeypad() {
+function buildKeypad(container, onDigit) {
   const keys = [['1', ''], ['2', 'ABC'], ['3', 'DEF'], ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
     ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'], ['*', ''], ['0', '+'], ['#', '']];
   for (const [digit, letters] of keys) {
     const b = document.createElement('button');
     b.className = 'key';
     b.innerHTML = `<b>${digit}</b><small>${letters}</small>`;
-    b.onclick = () => {
-      $('number').value += digit;
-      $('number').focus();
-    };
-    $('keypad').append(b);
+    b.onclick = () => onDigit(digit);
+    container.append(b);
   }
+}
+
+// --- Tastentöne im Gespräch ---
+
+const DTMF_FREQ = {
+  1: [697, 1209], 2: [697, 1336], 3: [697, 1477],
+  4: [770, 1209], 5: [770, 1336], 6: [770, 1477],
+  7: [852, 1209], 8: [852, 1336], 9: [852, 1477],
+  '*': [941, 1209], 0: [941, 1336], '#': [941, 1477],
+};
+let dtmfOpen = false;
+
+function setDtmfOpen(open) {
+  dtmfOpen = open;
+  $('callKeypad').hidden = !open;
+  $('callView').classList.toggle('dtmf-open', open);
+  $('keypadBtn').classList.toggle('active', open);
+  $('keypadBtn').setAttribute('aria-pressed', String(open));
+}
+
+// Kurzer Bestätigungston im Headset (die Gegenstelle bekommt das Signal über SIP/RTP).
+function playDtmfTone(digit) {
+  if (!audio || !DTMF_FREQ[digit]) return;
+  const ctx = audio.ctx;
+  const t = ctx.currentTime;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.setValueAtTime(0, t + 0.12);
+  gain.connect(ctx.destination);
+  for (const freq of DTMF_FREQ[digit]) {
+    const osc = ctx.createOscillator();
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    osc.start(t);
+    osc.stop(t + 0.13);
+  }
+}
+
+function sendDtmf(digit) {
+  if (!state.call || state.call.state !== 'active') return;
+  send({ type: 'dtmf', digit });
+  playDtmfTone(digit);
+  const shown = $('dtmfDigits');
+  shown.textContent = (shown.textContent + digit).slice(-20);
+  shown.hidden = false;
 }
 
 function dial() {
@@ -568,7 +615,21 @@ function stopMeter() {
 
 // --- Start ---
 
-buildKeypad();
+buildKeypad($('keypad'), (digit) => {
+  $('number').value += digit;
+  $('number').focus();
+});
+buildKeypad($('callKeypad'), sendDtmf);
+$('keypadBtn').onclick = () => setDtmfOpen(!dtmfOpen);
+// Ziffern, * und # über die Tastatur (auch Ziffernblock) während des Gesprächs
+document.addEventListener('keydown', (e) => {
+  if (!state.call || state.call.state !== 'active' || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+  if (/^[0-9*#]$/.test(e.key)) {
+    e.preventDefault();
+    sendDtmf(e.key);
+  }
+});
 $('callBtn').onclick = dial;
 $('number').addEventListener('keydown', (e) => e.key === 'Enter' && dial());
 $('backspace').onclick = () => ($('number').value = $('number').value.slice(0, -1));

@@ -6,6 +6,13 @@ const { EventEmitter } = require('events');
 const FRAME = 160; // 20 ms @ 8 kHz
 const MIC_BUFFER = FRAME * 10; // max. 200 ms Mikrofon-Puffer
 
+// Tastentöne nach RFC 4733 (telephone-event)
+const DTMF_EVENTS = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, '*': 10, '#': 11, A: 12, B: 13, C: 14, D: 15 };
+const DTMF_DURATION = FRAME * 5; // 100 ms
+const DTMF_END_PACKETS = 3; // Endpaket wird dreifach gesendet (UDP kann verlieren)
+const DTMF_GAP_FRAMES = 3; // 60 ms Pause zwischen zwei Tönen
+const DTMF_VOLUME = 10; // -10 dBm0
+
 // --- G.711 (nach der Referenzimplementierung von Sun) ---
 const SEG_AEND = [0x1f, 0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff];
 const SEG_UEND = [0x3f, 0x7f, 0xff, 0x1ff, 0x3ff, 0x7ff, 0xfff, 0x1fff];
@@ -79,6 +86,9 @@ class RtpSession extends EventEmitter {
     this.codec = null;
     this.timer = null;
     this.closed = false;
+    this.dtmfQueue = [];
+    this.dtmf = null;
+    this.dtmfGap = 0;
   }
 
   open() {
@@ -139,9 +149,20 @@ class RtpSession extends EventEmitter {
     return frame;
   }
 
+  sendDtmf(digit, pt) {
+    const event = DTMF_EVENTS[digit];
+    if (event !== undefined) this.dtmfQueue.push({ event, pt });
+  }
+
   sendFrame() {
     const frame = this.takeFrame();
-    if (this.remote && this.codec) {
+    if (this.dtmfGap > 0) this.dtmfGap--;
+    else if (!this.dtmf && this.dtmfQueue.length) {
+      this.dtmf = { ...this.dtmfQueue.shift(), ts: this.ts, duration: 0, ends: 0, first: true };
+    }
+    // Während eines Tastentons ersetzt das telephone-event-Paket das Sprachpaket.
+    if (this.dtmf) this.sendDtmfPacket();
+    else if (this.remote && this.codec) {
       const packet = Buffer.alloc(12 + FRAME);
       packet[0] = 0x80;
       packet[1] = (this.marker ? 0x80 : 0) | this.codec.pt;
@@ -155,6 +176,31 @@ class RtpSession extends EventEmitter {
     }
     this.seq = (this.seq + 1) & 0xffff;
     this.ts = (this.ts + FRAME) >>> 0;
+  }
+
+  // RFC 4733: ein Ereignis behält seine Zeitmarke, die Dauer wächst je Paket, am Ende E-Bit.
+  sendDtmfPacket() {
+    const d = this.dtmf;
+    const end = d.duration >= DTMF_DURATION;
+    if (end) d.ends++;
+    else d.duration += FRAME;
+    if (this.remote) {
+      const packet = Buffer.alloc(16);
+      packet[0] = 0x80;
+      packet[1] = (d.first ? 0x80 : 0) | d.pt;
+      packet.writeUInt16BE(this.seq, 2);
+      packet.writeUInt32BE(d.ts, 4);
+      packet.writeUInt32BE(this.ssrc, 8);
+      packet[12] = d.event;
+      packet[13] = (end ? 0x80 : 0) | DTMF_VOLUME;
+      packet.writeUInt16BE(d.duration, 14);
+      this.socket.send(packet, this.remote.port, this.remote.ip);
+    }
+    d.first = false;
+    if (end && d.ends >= DTMF_END_PACKETS) {
+      this.dtmf = null;
+      this.dtmfGap = DTMF_GAP_FRAMES;
+    }
   }
 
   onPacket(buf, rinfo) {

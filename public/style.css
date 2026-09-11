@@ -205,7 +205,13 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 #callUri { margin: 0; font-size: 13px; }
 .call-status { margin: 14px 0 40px; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--text); }
 
-.call-actions { display: flex; gap: 48px; }
+.call-actions { display: flex; gap: 32px; }
+
+/* Tastenfeld im Gespräch */
+.dtmf-digits { margin: -24px 0 16px; min-height: 28px; font-size: 22px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
+.call-keypad { margin: 0 0 22px; }
+#callView.dtmf-open .avatar { display: none; }
+#callView.dtmf-open #callName { margin-top: 4px; }
 
 /* Audio-Freigabe */
 .gate {
