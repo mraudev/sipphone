@@ -152,6 +152,10 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 .round-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .round-btn.call { background: var(--green); box-shadow: 0 10px 30px rgba(34, 197, 94, 0.35); }
 .round-btn.hangup { background: var(--red); box-shadow: 0 10px 30px rgba(239, 68, 68, 0.35); }
+.round-btn.secondary { background: rgba(255, 255, 255, 0.1); color: var(--text); font-size: 26px; }
+.round-btn.secondary.active { background: var(--text); color: var(--bg); }
+.round-btn .icon-mic-off, .round-btn.active .icon-mic { display: none; }
+.round-btn.active .icon-mic-off { display: block; }
 
 /* Konto einrichten / bearbeiten */
 #accountView { align-items: stretch; }

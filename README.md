@@ -7,7 +7,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 ## Funktionen
 
 - **Registrierung** an einem SIP-Server über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash)
-- **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU)
+- **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU), Stummschalten im Gespräch
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
@@ -77,4 +77,4 @@ Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\li
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
 - Nur G.711 (PCMA/PCMU)
 - Ein Gespräch gleichzeitig; ein zweiter Anruf wird mit „besetzt“ abgewiesen
-- Noch keine Tastentöne im Gespräch (DTMF), kein Halten, Stummschalten oder Weiterleiten
+- Noch keine Tastentöne im Gespräch (DTMF), kein Halten oder Weiterleiten

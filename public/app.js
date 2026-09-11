@@ -14,6 +14,7 @@ const REG_LABELS = {
 let state = { registration: { state: 'idle' }, call: null };
 let audio = null; // { ctx, node, ringCtx }
 let mic = null; // null | 'pending' | { stream, source }
+let muted = false;
 let audioCfg = { microphone: '', speaker: '', ringer: '' }; // Gerätenamen aus config.json
 let devices = [];
 let history = [];
@@ -59,9 +60,11 @@ function render() {
     $('initials').textContent = initials(name);
     $('avatar').classList.toggle('ringing', call.state === 'incoming' || call.state === 'ringing' || call.state === 'calling');
     $('answerBtn').hidden = call.state !== 'incoming';
+    $('muteBtn').hidden = call.state !== 'active';
     document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'SIP Phone';
   } else {
     document.title = 'SIP Phone';
+    if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
   }
   updateCallStatus();
   updateAudio();
@@ -85,6 +88,7 @@ function updateCallStatus() {
     const s = Math.max(0, Math.floor((Date.now() - call.startedAt) / 1000));
     text = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
     if (call.codec) text += `  ·  ${call.codec}`;
+    if (muted) text += '  ·  Stumm';
   }
   $('callStatus').textContent = text;
 }
@@ -323,6 +327,7 @@ async function startMic() {
       stream.getTracks().forEach((t) => t.stop());
       return;
     }
+    for (const track of stream.getAudioTracks()) track.enabled = !muted;
     const source = audio.ctx.createMediaStreamSource(stream);
     source.connect(audio.node);
     mic = { stream, source };
@@ -330,6 +335,20 @@ async function startMic() {
     mic = null;
     toast(`Mikrofon: ${err.message}`, true);
   }
+}
+
+// Stumm = Mikrofonspur deaktivieren; die Gegenstelle bekommt Stille, das Gespräch läuft weiter.
+function setMuted(value) {
+  muted = value;
+  if (mic && mic !== 'pending') {
+    for (const track of mic.stream.getAudioTracks()) track.enabled = !muted;
+  }
+  const button = $('muteBtn');
+  button.classList.toggle('active', muted);
+  button.setAttribute('aria-pressed', String(muted));
+  button.title = muted ? 'Stummschaltung aufheben' : 'Stummschalten';
+  button.setAttribute('aria-label', button.title);
+  updateCallStatus();
 }
 
 function stopMic() {
@@ -552,6 +571,7 @@ $('number').addEventListener('keydown', (e) => e.key === 'Enter' && dial());
 $('backspace').onclick = () => ($('number').value = $('number').value.slice(0, -1));
 $('answerBtn').onclick = () => send({ type: 'answer' });
 $('hangupBtn').onclick = () => send({ type: 'hangup' });
+$('muteBtn').onclick = () => setMuted(!muted);
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
 $('accountForm').onsubmit = saveAccount;
 $('accountCancel').onclick = () => {
