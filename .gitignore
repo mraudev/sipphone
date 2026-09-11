@@ -1,0 +1,6 @@
+node_modules/
+dist/
+
+# Zugangsdaten – niemals committen
+settings_lp
+config.json

@@ -1,0 +1,100 @@
+'use strict';
+const fs = require('fs');
+const path = require('path');
+
+const ROOT = path.join(__dirname, '..');
+// Hier wird beim ersten Start nach Linphone-Einstellungen gesucht (installiertes Linphone zuerst).
+const LINPHONE_FILES = [
+  process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'linphone', 'linphonerc'),
+  process.env.APPDATA && path.join(process.env.APPDATA, 'linphone', 'linphonerc'),
+  path.join(ROOT, 'settings_lp'),
+].filter(Boolean);
+
+let configFile = null;
+
+const DEFAULTS = {
+  displayName: '',
+  username: '',
+  domain: '',
+  authUsername: '',
+  realm: '',
+  ha1: '',
+  password: '',
+  proxy: '',
+  proxyPort: 5060,
+  expires: 600,
+  sipPort: 0,
+  // Gerätenamen wie Windows sie anzeigt; leer = Systemstandard
+  audio: { microphone: '', speaker: '', ringer: '' },
+  ringtone: null, // { file, name } – eigener Klingelton im App-Ordner, null = Standard
+};
+
+// 'WASAPI: Speakers (2- Jabra Link 390) [Unknown]' -> 'Speakers (2- Jabra Link 390)'
+function linphoneDevice(id) {
+  return (id || '').replace(/^\w+:\s*/, '').replace(/\s*\[[^\]]*\]$/, '');
+}
+
+function parseIni(text) {
+  const sections = {};
+  let current = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const section = /^\[(.+)\]$/.exec(line);
+    if (section) {
+      current = sections[section[1]] = {};
+      continue;
+    }
+    const i = line.indexOf('=');
+    if (current && i > 0) current[line.slice(0, i)] = line.slice(i + 1);
+  }
+  return sections;
+}
+
+function importLinphone(file) {
+  const ini = parseIni(fs.readFileSync(file, 'utf8'));
+  const proxy = ini.proxy_0 || {};
+  const auth = ini.auth_info_0 || {};
+  const sound = ini.sound || {};
+  const identity = /<sip:([^@>]+)@([^>;]+)>\s*$/.exec(proxy.reg_identity || '');
+  const display = /\\"([^\\]+)\\"/.exec(proxy.reg_identity || '');
+  const regProxy = /sip:([^;>:]+)(?::(\d+))?/.exec(proxy.reg_proxy || '');
+  return {
+    ...DEFAULTS,
+    displayName: display ? display[1] : '',
+    username: identity ? identity[1] : auth.username,
+    domain: identity ? identity[2] : auth.domain,
+    authUsername: auth.username || '',
+    realm: auth.realm || '',
+    ha1: auth.ha1 || '',
+    proxy: regProxy ? regProxy[1] : auth.domain,
+    proxyPort: regProxy && regProxy[2] ? Number(regProxy[2]) : 5060,
+    expires: Number(proxy.reg_expires) || DEFAULTS.expires,
+    audio: {
+      microphone: linphoneDevice(sound.capture_dev_id),
+      speaker: linphoneDevice(sound.playback_dev_id),
+      ringer: linphoneDevice(sound.ringer_dev_id),
+    },
+  };
+}
+
+// Liest <dir>/config.json; beim ersten Start wird sie aus Linphone importiert (oder leer angelegt).
+function loadConfig(dir) {
+  configFile = path.join(dir, 'config.json');
+  if (fs.existsSync(configFile)) {
+    const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    return { ...DEFAULTS, ...cfg, audio: { ...DEFAULTS.audio, ...cfg.audio } };
+  }
+  const linphone = LINPHONE_FILES.find((f) => fs.existsSync(f));
+  const cfg = linphone ? importLinphone(linphone) : { ...DEFAULTS };
+  fs.mkdirSync(dir, { recursive: true });
+  saveConfig(cfg);
+  console.log(linphone ? `Konto aus ${linphone} importiert -> ${configFile}` : `Leere Konfiguration angelegt: ${configFile}`);
+  return cfg;
+}
+
+function saveConfig(cfg) {
+  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2) + '\n');
+}
+
+module.exports = { loadConfig, saveConfig };
