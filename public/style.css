@@ -30,10 +30,15 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 
 [hidden] { display: none !important; }
 
+/* Die App füllt genau das Fenster: Kopf, Status und Reiter stehen fest, nur der Inhalt darunter scrollt. */
+body { overflow: hidden; }
 .phone {
-  min-height: 100vh;
+  height: 100vh;
+  display: flex; flex-direction: column;
   padding: 16px 22px 28px;
 }
+.phone > * { flex: none; }
+.phone > .view { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; }
 
@@ -100,8 +105,8 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 }
 
 /* Verlauf */
-#history { align-items: stretch; }
-.history-list { list-style: none; margin: 0; padding: 0; max-height: calc(100vh - 250px); overflow-y: auto; }
+#history { align-items: stretch; overflow: hidden; }
+.history-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .entry { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
 .entry-dir { display: grid; font-size: 18px; color: var(--green); }
 .entry.out .entry-dir { color: var(--accent); }
@@ -167,7 +172,7 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 .round-btn.active .icon-mic-off { display: block; }
 
 /* Telefonbuch */
-#contacts { align-items: stretch; }
+#contacts { align-items: stretch; overflow: hidden; }
 .contacts-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .contacts-bar input {
   flex: 1; min-width: 0; padding: 9px 12px;
@@ -176,7 +181,7 @@ svg { width: 1em; height: 1em; fill: currentColor; }
 }
 .contacts-bar input:focus { outline: none; border-color: var(--accent); }
 .contacts-bar .text-btn { padding: 8px 12px; }
-.contact-list { list-style: none; margin: 0; padding: 0; max-height: calc(100vh - 300px); overflow-y: auto; }
+.contact-list { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .contact { padding: 10px 2px; border-bottom: 1px solid var(--line); }
 .contact-head { display: flex; align-items: center; gap: 12px; }
 .contact-avatar {
