@@ -71,8 +71,9 @@ body { overflow: hidden; }
 .status[data-state="registering"] .dot,
 .status[data-state="unregistering"] .dot { background: var(--amber); animation: blink 1s infinite; }
 .status[data-state="failed"] .dot { background: var(--red); }
+.status[data-state="partial"] .dot { background: var(--amber); }
 
-.reason { margin: 8px 2px 0; color: #fca5a5; font-size: 13px; }
+.reason { margin: 8px 2px 0; color: #fca5a5; font-size: 13px; white-space: pre-line; }
 
 .update-bar {
   margin-top: 10px;
@@ -236,8 +237,22 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 .account-form input:focus { outline: none; border-color: var(--accent); }
 .account-form details { margin: 4px 0 12px; }
 .account-form summary { margin-bottom: 10px; color: var(--muted); font-size: 13px; cursor: pointer; }
-.account-form .dialog-actions { margin-top: 8px; }
-#editAccount { justify-self: start; margin-top: 4px; }
+.account-form .dialog-actions { margin-top: 8px; gap: 8px; }
+#addAccount { justify-self: start; }
+
+/* Konto-Auswahl für ausgehende Anrufe (nur bei mehreren Konten) */
+.line-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.line-row select {
+  flex: 1; min-width: 0; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--text); font: inherit;
+}
+/* Mit Konto-Auswahl rückt die Tastatur zusammen, bei kleinem Fenster werden die Tasten etwas kleiner. */
+#dialer.with-line .keypad { margin: 14px 0 16px; row-gap: 10px; }
+@media (max-height: 760px) {
+  #dialer.with-line .keypad { grid-template-columns: repeat(3, 64px); }
+  #dialer.with-line .key { width: 64px; height: 64px; }
+}
 
 /* Gesprächsansicht */
 #callView { padding: 12px 0 8px; text-align: center; }
@@ -260,6 +275,7 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 #callName { margin: 22px 0 4px; font-size: 24px; font-weight: 600; }
 .muted { color: var(--muted); }
 #callUri { margin: 0; font-size: 13px; }
+.call-line { margin: 6px 0 0; font-size: 13px; color: var(--accent); }
 .call-status { margin: 14px 0 40px; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--text); }
 
 .call-actions { display: flex; gap: 32px; }
@@ -311,6 +327,14 @@ dialog select {
 .meter span { display: block; width: 0; height: 100%; background: var(--green); transition: width 60ms linear; }
 .account { margin: 18px 0; padding: 12px 14px; border-radius: 12px; background: var(--card); display: grid; gap: 8px; }
 .account div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.account .account-list { flex-direction: column; gap: 4px; }
+.account .account-item { justify-content: flex-start; align-items: center; gap: 10px; }
+.account .account-item-text { flex: 1; min-width: 0; flex-direction: column; gap: 0; }
+.account-item-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-item .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.account-item[data-state="registered"] .dot { background: var(--green); }
+.account-item[data-state="registering"] .dot { background: var(--amber); }
+.account-item[data-state="failed"] .dot { background: var(--red); }
 .dialog-actions { display: flex; justify-content: space-between; }
 .text-btn {
   padding: 9px 16px; border: 1px solid var(--line); border-radius: 10px;

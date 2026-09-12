@@ -43,6 +43,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 5v14a1 1 0 0 1-1 1H8l-6-8 6-8h13a1 1 0 0 1 1 1zm-4.3 3.7-1.4-1.4L13 10.6 9.7 7.3 8.3 8.7l3.3 3.3-3.3 3.3 1.4 1.4 3.3-3.3 3.3 3.3 1.4-1.4-3.3-3.3z"/></svg>
         </button>
       </div>
+      <div id="lineRow" class="line-row" hidden>
+        <label for="lineSelect">Anrufen über</label>
+        <select id="lineSelect"></select>
+      </div>
       <div class="keypad" id="keypad"></div>
       <button id="callBtn" class="round-btn call" title="Anrufen" aria-label="Anrufen">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z"/></svg>
@@ -80,7 +84,8 @@
     <section id="accountView" class="view" hidden>
       <form id="accountForm" class="account-form" autocomplete="off">
         <h2 id="accountTitle">SIP-Konto einrichten</h2>
-        <p class="muted small">Die Zugangsdaten bekommst du vom Administrator deiner Telefonanlage.</p>
+        <p class="muted small">Die Zugangsdaten bekommst du vom Administrator deiner Telefonanlage bzw. aus deiner FRITZ!Box (Telefonie → Telefoniegeräte → IP-Telefon).</p>
+        <label>Bezeichnung<input name="label" placeholder="z. B. Firma oder Privat"></label>
         <label>Anzeigename<input name="displayName" placeholder="Max Mustermann"></label>
         <label>Benutzername / Nebenstelle *<input name="username" required placeholder="z. B. 742"></label>
         <label>Passwort<input name="password" type="password"></label>
@@ -93,6 +98,8 @@
         </details>
         <p id="accountError" class="reason" hidden></p>
         <div class="dialog-actions">
+          <button type="button" id="accountDelete" class="text-btn danger" hidden>Löschen</button>
+          <span class="spacer"></span>
           <button type="button" id="accountCancel" class="text-btn">Abbrechen</button>
           <button type="submit" id="accountSave" class="text-btn primary">Speichern &amp; verbinden</button>
         </div>
@@ -103,6 +110,7 @@
       <div class="avatar" id="avatar"><span id="initials"></span></div>
       <h1 id="callName"></h1>
       <p id="callUri" class="muted"></p>
+      <p id="callLine" class="call-line" hidden></p>
       <p id="callStatus" class="call-status"></p>
       <p id="dtmfDigits" class="dtmf-digits" hidden></p>
       <div id="callKeypad" class="keypad call-keypad" hidden></div>
@@ -163,13 +171,13 @@
         </div>
       </div>
       <div class="account">
-        <div><span class="muted small">Konto</span><span id="accAor"></span></div>
-        <div><span class="muted small">Server</span><span id="accServer"></span></div>
+        <span class="muted small">Konten</span>
+        <div id="accountList" class="account-list"></div>
+        <button type="button" id="addAccount" class="text-btn">+ Konto hinzufügen</button>
         <div><span class="muted small">Version</span><span id="appVersion"></span></div>
-        <button type="button" id="editAccount" class="text-btn">Konto bearbeiten</button>
       </div>
       <div class="dialog-actions">
-        <button type="button" id="reRegister" class="text-btn">Neu registrieren</button>
+        <button type="button" id="reRegister" class="text-btn">Neu anmelden</button>
         <button value="close" class="text-btn primary">Fertig</button>
       </div>
     </form>

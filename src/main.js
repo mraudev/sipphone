@@ -1,11 +1,12 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
-const { loadConfig, saveConfig } = require('./config');
-const { SipUA } = require('./sip');
+const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS } = require('./config');
+const { Phone } = require('./phone');
 const { CallHistory } = require('./history');
 const { Contacts, normalizeNumber } = require('./contacts');
 const { importOutlookContacts } = require('./outlook');
@@ -27,7 +28,7 @@ app.setAppUserModelId(app.isPackaged ? 'de.rau.sipphone' : 'de.rau.sipphone.dev'
 let win = null;
 let tray = null;
 let cfg = null;
-let ua = null;
+let phone = null; // alle Konten (src/phone.js)
 let history = null;
 let contacts = null;
 let flashing = false;
@@ -96,10 +97,22 @@ function hideToTray() {
   tray.displayBalloon({ icon: ICON_PNG, title: 'SIP Phone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
 }
 
+function connectionSummary(accounts) {
+  if (!accounts.length) return 'Kein Konto';
+  const registered = accounts.filter((a) => a.state === 'registered').length;
+  if (registered === accounts.length) return 'Verbunden';
+  if (registered) return `${registered} von ${accounts.length} verbunden`;
+  return accounts.length === 1 ? REG_TEXT[accounts[0].state] || accounts[0].state : 'Nicht verbunden';
+}
+
 function updateTray(s) {
   if (!tray) return;
-  const text = s.call ? 'Im Gespräch' : REG_TEXT[s.registration.state] || s.registration.state;
-  tray.setToolTip(`SIP Phone – ${text}`);
+  tray.setToolTip(`SIP Phone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}`);
+}
+
+// Bei mehreren Konten steht in Benachrichtigungen, welches Konto gemeint ist.
+function accountHint(label) {
+  return phone.lines.length > 1 && label ? `\nfür ${label}` : '';
 }
 
 function send(channel, data) {
@@ -123,7 +136,7 @@ function contactsView() {
 function contactsChanged() {
   send('phone:contactsChanged', contactsView());
   send('phone:historyChanged', historyView());
-  if (ua.call) ua.emitState();
+  if (phone.call) phone.emitState();
 }
 
 function mergeImported(found, source) {
@@ -183,7 +196,7 @@ function showCallToast(call) {
   const name = call.contactName || call.remoteName;
   callToast = new Notification({
     title: 'Eingehender Anruf',
-    body: name ? `${name} (${number})` : number,
+    body: (name ? `${name} (${number})` : number) + accountHint(call.accountLabel),
     icon: ICON_PNG,
     silent: true, // Klingelton spielt die App selbst auf dem gewählten Klingelgerät
     timeoutType: 'never',
@@ -193,10 +206,10 @@ function showCallToast(call) {
   callToast.on('action', (details, index) => {
     const action = details && details.actionIndex !== undefined ? details.actionIndex : index;
     if (action === 0) {
-      ua.answer();
+      phone.answer();
       showWindow();
     } else if (action === 1) {
-      ua.reject();
+      phone.reject();
     }
   });
   callToast.on('click', showWindow);
@@ -212,7 +225,7 @@ function closeCallToast() {
 function notifyMissed(entry) {
   if (!Notification.isSupported() || (win && win.isVisible() && win.isFocused())) return;
   const body = contacts.lookup(entry.remoteUri) || entry.remoteName || entry.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
-  const n = new Notification({ title: 'Verpasster Anruf', body, icon: ICON_PNG });
+  const n = new Notification({ title: 'Verpasster Anruf', body: body + accountHint(entry.accountLabel), icon: ICON_PNG });
   n.on('click', () => {
     showWindow();
     send('phone:showHistory');
@@ -223,17 +236,21 @@ function notifyMissed(entry) {
 // Zugangsdaten: Passwort und HA1-Hash (aus Linphone) gelten beide als Passwort fürs SIP-Konto.
 const SECRET_FIELDS = ['password', 'ha1'];
 
-// config.json schreiben; Zugangsdaten nur verschlüsselt (Windows DPAPI), nie im Klartext.
+function encryptAccount(account) {
+  const stored = { ...account };
+  for (const field of SECRET_FIELDS) {
+    delete stored[`${field}Enc`];
+    if (!account[field]) continue;
+    stored[`${field}Enc`] = safeStorage.encryptString(account[field]).toString('base64');
+    stored[field] = '';
+  }
+  return stored;
+}
+
+// config.json schreiben; Zugangsdaten aller Konten nur verschlüsselt (Windows DPAPI), nie im Klartext.
 function persist() {
   const stored = { ...cfg };
-  if (safeStorage.isEncryptionAvailable()) {
-    for (const field of SECRET_FIELDS) {
-      delete stored[`${field}Enc`];
-      if (!cfg[field]) continue;
-      stored[`${field}Enc`] = safeStorage.encryptString(cfg[field]).toString('base64');
-      stored[field] = '';
-    }
-  }
+  if (safeStorage.isEncryptionAvailable()) stored.accounts = cfg.accounts.map(encryptAccount);
   saveConfig(stored);
 }
 
@@ -242,41 +259,49 @@ function persist() {
 function loadSecrets() {
   if (!safeStorage.isEncryptionAvailable()) return;
   let plaintext = false;
-  for (const field of SECRET_FIELDS) {
-    const encrypted = cfg[`${field}Enc`];
-    if (encrypted) {
-      try {
-        cfg[field] = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
-      } catch (err) {
-        console.error(`${field} konnte nicht entschlüsselt werden:`, err.message);
+  for (const account of cfg.accounts) {
+    for (const field of SECRET_FIELDS) {
+      const encrypted = account[`${field}Enc`];
+      if (encrypted) {
+        try {
+          account[field] = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+        } catch (err) {
+          console.error(`${account.label}: ${field} konnte nicht entschlüsselt werden:`, err.message);
+        }
+      } else if (account[field]) {
+        plaintext = true;
       }
-    } else if (cfg[field]) {
-      plaintext = true;
     }
   }
   if (plaintext) persist();
 }
 
-function accountInfo() {
-  return {
-    displayName: cfg.displayName,
-    username: cfg.username,
-    domain: cfg.domain,
-    authUsername: cfg.authUsername,
-    proxy: cfg.proxy,
-    proxyPort: cfg.proxyPort,
-    hasCredentials: !!(cfg.password || cfg.ha1),
-  };
+// Konten fürs Fenster – ohne Zugangsdaten.
+function accountsView() {
+  return cfg.accounts.map((a) => ({
+    id: a.id,
+    label: a.label,
+    displayName: a.displayName,
+    username: a.username,
+    domain: a.domain,
+    authUsername: a.authUsername,
+    proxy: a.proxy,
+    proxyPort: a.proxyPort,
+    hasCredentials: !!(a.password || a.ha1),
+  }));
 }
 
+// Legt ein Konto an (ohne id) oder ändert ein bestehendes.
 async function saveAccount(data) {
   const field = (name) => String(data[name] || '').trim();
   const username = field('username');
   const domain = field('domain');
   if (!username || !domain) return { error: 'Benutzername und Server sind Pflichtfelder.' };
-  if (ua.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  const existing = cfg.accounts.find((a) => a.id === data.id);
   const authUsername = field('authUsername');
   const changes = {
+    label: field('label') || domain,
     displayName: field('displayName'),
     username,
     domain,
@@ -289,12 +314,26 @@ async function saveAccount(data) {
     Object.assign(changes, { password, ha1: '', realm: '' });
   } else {
     // Ohne neues Passwort nur, wenn es beim selben Benutzer bleibt und schon Zugangsdaten da sind.
-    const sameUser = (authUsername || username) === (cfg.authUsername || cfg.username);
-    if (!sameUser || !(cfg.password || cfg.ha1)) return { error: 'Bitte das Passwort eingeben.' };
+    const sameUser = existing && (authUsername || username) === (existing.authUsername || existing.username);
+    if (!sameUser || !(existing.password || existing.ha1)) return { error: 'Bitte das Passwort eingeben.' };
   }
-  await ua.reconfigure(changes);
+  if (existing) {
+    await phone.updateAccount(existing.id, changes);
+  } else {
+    const account = { ...ACCOUNT_DEFAULTS, ...changes, id: crypto.randomUUID() };
+    cfg.accounts.push(account);
+    await phone.addAccount(account);
+  }
   persist();
-  return { account: accountInfo() };
+  return { accounts: accountsView() };
+}
+
+async function deleteAccount(id) {
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  await phone.removeAccount(id); // meldet vorher ab
+  cfg.accounts = cfg.accounts.filter((a) => a.id !== id);
+  persist();
+  return { accounts: accountsView() };
 }
 
 // Eigener Klingelton: wird in den App-Ordner kopiert, damit er auch nach Verschieben des Originals klingelt.
@@ -358,9 +397,9 @@ function setupUpdater() {
 
 async function installUpdate() {
   if (!updateReady) return null;
-  if (ua.call) return { error: 'Bitte erst das Gespräch beenden.' };
+  if (phone.call) return { error: 'Bitte erst das Gespräch beenden.' };
   quitting = true;
-  await ua.stop(); // sauber abmelden, bevor der Installer die App beendet
+  await phone.stop(); // sauber abmelden, bevor der Installer die App beendet
   stopped = true;
   autoUpdater.quitAndInstall(true, true); // still installieren, danach neu starten
   return null;
@@ -368,11 +407,11 @@ async function installUpdate() {
 
 async function runCommand(msg) {
   try {
-    if (msg.type === 'dial') await ua.dial(String(msg.target || ''));
-    else if (msg.type === 'answer') ua.answer();
-    else if (msg.type === 'hangup') ua.hangup();
-    else if (msg.type === 'dtmf') ua.sendDtmf(String(msg.digit || ''));
-    else if (msg.type === 'register') await ua.register();
+    if (msg.type === 'dial') await phone.dial(String(msg.target || ''), msg.accountId);
+    else if (msg.type === 'answer') phone.answer();
+    else if (msg.type === 'hangup') phone.hangup();
+    else if (msg.type === 'dtmf') phone.sendDtmf(String(msg.digit || ''));
+    else if (msg.type === 'register') await phone.register();
     return null;
   } catch (err) {
     return { error: err.message };
@@ -398,35 +437,36 @@ if (!app.requestSingleInstanceLock()) {
     });
     session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => permission === 'media' && String(origin).startsWith(APP_ORIGIN));
 
-    cfg = loadConfig(app.getPath('userData'));
+    cfg = normalizeConfig(loadConfig(app.getPath('userData')));
     loadSecrets();
     history = new CallHistory(app.getPath('userData'));
     contacts = new Contacts(app.getPath('userData'));
-    ua = new SipUA(cfg);
-    ua.on('state', (raw) => {
+    phone = new Phone(cfg.accounts);
+    phone.on('state', (raw) => {
       const s = withContactName(raw);
       send('phone:state', s);
       attention(s.call);
       updateTray(s);
     });
-    ua.on('ended', (reason, call) => {
+    phone.on('ended', (reason, call) => {
       send('phone:ended', reason);
       const entry = history.add(reason, call);
       send('phone:historyChanged', historyView());
       if (entry.status === 'missed') notifyMissed(entry);
     });
-    ua.on('audio', (pcm) => send('phone:audio', pcm));
+    phone.on('audio', (pcm) => send('phone:audio', pcm));
 
-    ipcMain.handle('phone:state', () => withContactName(ua.snapshot()));
+    ipcMain.handle('phone:state', () => withContactName(phone.snapshot()));
     ipcMain.handle('phone:command', (_e, msg) => runCommand(msg));
-    ipcMain.on('phone:audio', (_e, pcm) => ua.pushAudio(pcm));
+    ipcMain.on('phone:audio', (_e, pcm) => phone.pushAudio(pcm));
     ipcMain.handle('phone:getAudio', () => cfg.audio);
     ipcMain.handle('phone:setAudio', (_e, audio) => {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getAccount', () => accountInfo());
+    ipcMain.handle('phone:accounts', () => accountsView());
     ipcMain.handle('phone:saveAccount', (_e, data) => saveAccount(data));
+    ipcMain.handle('phone:deleteAccount', (_e, id) => deleteAccount(id));
     ipcMain.handle('phone:getRingtone', () => ringtoneData());
     ipcMain.handle('phone:chooseRingtone', () => chooseRingtone());
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
@@ -457,16 +497,16 @@ if (!app.requestSingleInstanceLock()) {
 
     createTray();
     createWindow();
-    await ua.start();
+    await phone.start();
     setupUpdater();
   });
 
   // Vor dem Beenden sauber beim Server abmelden.
   app.on('before-quit', (e) => {
     quitting = true;
-    if (stopped || !ua) return;
+    if (stopped || !phone) return;
     e.preventDefault();
-    ua.stop().finally(() => {
+    phone.stop().finally(() => {
       stopped = true;
       app.quit();
     });

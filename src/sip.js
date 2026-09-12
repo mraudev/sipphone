@@ -170,9 +170,11 @@ const FAILURE_TEXT = {
 // --- User Agent ---
 
 class SipUA extends EventEmitter {
-  constructor(cfg) {
+  // options.isBusy: Rückfrage, ob gerade ein anderes Konto telefoniert (dann gibt es "besetzt").
+  constructor(cfg, options = {}) {
     super();
     this.cfg = cfg;
+    this.isBusy = options.isBusy || (() => false);
     this.tx = new Map(); // Client-Transaktionen
     this.stx = new Map(); // Server-Transaktionen (für Retransmits)
     this.reg = { state: 'idle', reason: '' };
@@ -824,7 +826,7 @@ class SipUA extends EventEmitter {
   }
 
   async onInvite(req, rinfo) {
-    if (this.call) {
+    if (this.call || this.isBusy()) {
       this.respond(req, rinfo, 486, 'Busy Here');
       return;
     }

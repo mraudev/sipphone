@@ -11,7 +11,7 @@ const REG_LABELS = {
   failed: 'Nicht verbunden',
 };
 
-let state = { registration: { state: 'idle' }, call: null };
+let state = { accounts: [], call: null }; // accounts: Anmeldestatus je Konto (id, label, aor, state, reason)
 let audio = null; // { ctx, node, ringCtx }
 let mic = null; // null | 'pending' | { stream, source }
 let muted = false;
@@ -22,8 +22,9 @@ let contacts = []; // Telefonbuch; jede Nummer hat zusätzlich "dial" (wählbare
 let activeTab = 'dialer';
 let editingContactId = null;
 let ringtone = null; // { name, buffer } – eigener Klingelton, null = eingebaute Melodie
-let account = null; // { displayName, username, domain, ..., hasCredentials }
+let accounts = []; // Kontodaten fürs Formular (ohne Zugangsdaten)
 let editingAccount = false;
+let editingAccountId = null;
 let updateVersion = null; // heruntergeladenes Update, wartet auf Neustart
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
@@ -35,16 +36,63 @@ async function send(msg) {
 
 // --- Oberfläche ---
 
-function render() {
-  const reg = state.registration;
+// Statuszeile: ein Konto wie gehabt, mehrere zusammengefasst ("1 von 2 verbunden").
+function renderStatus() {
+  const list = state.accounts || [];
+  const registered = list.filter((a) => a.state === 'registered').length;
+  let key;
+  let text;
+  let detail;
+  if (!list.length) {
+    [key, text, detail] = ['idle', 'Kein Konto', ''];
+  } else if (list.length === 1) {
+    key = list[0].state;
+    text = REG_LABELS[key] || key;
+    detail = list[0].aor.replace(/^sip:/, '');
+  } else {
+    if (registered === list.length) key = 'registered';
+    else if (registered) key = 'partial';
+    else key = list.some((a) => a.state === 'registering') ? 'registering' : 'failed';
+    text = registered === list.length ? 'Verbunden' : registered ? `${registered} von ${list.length} verbunden` : REG_LABELS[key];
+    detail = list.map((a) => a.label).join(' · ');
+  }
   const status = $('regStatus');
-  status.dataset.state = reg.state;
-  status.querySelector('.status-text').textContent = REG_LABELS[reg.state] || reg.state;
-  status.querySelector('.status-aor').textContent = accountConfigured() && reg.aor ? reg.aor.replace(/^sip:/, '') : '';
-  $('regReason').hidden = !(reg.state === 'failed' && reg.reason);
-  $('regReason').textContent = reg.reason || '';
-  $('accAor').textContent = accountConfigured() && reg.aor ? reg.aor : '–';
-  $('accServer').textContent = reg.server || '–';
+  status.dataset.state = key;
+  status.querySelector('.status-text').textContent = text;
+  status.querySelector('.status-aor').textContent = detail;
+  const problems = list.filter((a) => a.state === 'failed' && a.reason).map((a) => (list.length > 1 ? `${a.label}: ${a.reason}` : a.reason));
+  $('regReason').hidden = !problems.length;
+  $('regReason').textContent = problems.join('\n');
+  renderAccountList();
+  renderLineSelect();
+}
+
+function multipleAccounts() {
+  return (state.accounts || []).length > 1;
+}
+
+// Konto für ausgehende Anrufe: gemerkte Auswahl, sonst das erste angemeldete.
+function selectedLine() {
+  const list = state.accounts || [];
+  let saved = null;
+  try {
+    saved = localStorage.getItem('sipphone.line');
+  } catch {}
+  const line = list.find((a) => a.id === saved) || list.find((a) => a.state === 'registered') || list[0];
+  return line ? line.id : null;
+}
+
+function renderLineSelect() {
+  const list = state.accounts || [];
+  $('lineRow').hidden = list.length < 2;
+  $('dialer').classList.toggle('with-line', list.length >= 2);
+  const current = selectedLine();
+  $('lineSelect').replaceChildren(...list.map((a) => new Option(a.state === 'registered' ? a.label : `${a.label} (nicht verbunden)`, a.id)));
+  $('lineSelect').value = current || '';
+}
+
+function render() {
+  renderStatus();
 
   const call = state.call;
   $('updateBar').hidden = !updateVersion || !!call; // nie mitten im Gespräch
@@ -56,13 +104,17 @@ function render() {
   $('history').hidden = !!call || setup || activeTab !== 'history';
   $('contacts').hidden = !!call || setup || activeTab !== 'contacts';
   $('callView').hidden = !call;
-  $('callBtn').disabled = reg.state !== 'registered';
+  const line = (state.accounts || []).find((a) => a.id === selectedLine());
+  $('callBtn').disabled = !line || line.state !== 'registered';
 
   if (call) {
     const user = call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
     const name = call.contactName || call.remoteName || user;
     $('callName').textContent = name;
     $('callUri').textContent = call.remoteUri.replace(/^(sips?|tel):/i, '');
+    const lineText = multipleAccounts() && call.accountLabel ? `${call.direction === 'in' ? 'Anruf für' : 'über'} ${call.accountLabel}` : '';
+    $('callLine').textContent = lineText;
+    $('callLine').hidden = !lineText;
     $('initials').textContent = initials(name);
     $('avatar').classList.toggle('ringing', call.state === 'incoming' || call.state === 'ringing' || call.state === 'calling');
     $('answerBtn').hidden = call.state !== 'incoming';
@@ -174,19 +226,20 @@ function sendDtmf(digit) {
 function dial() {
   const target = $('number').value.trim();
   if (!target) return;
-  send({ type: 'dial', target });
+  send({ type: 'dial', target, accountId: selectedLine() });
 }
 
-// --- Konto ---
+// --- Konten ---
 
 function accountConfigured() {
-  return !!(account && account.username && account.domain);
+  return accounts.length > 0;
 }
 
-function showAccountForm() {
+// Ohne Konto: neues Konto anlegen (beim ersten Start "SIP-Konto einrichten").
+function showAccountForm(account = null) {
   const form = $('accountForm');
-  const configured = accountConfigured();
-  for (const name of ['displayName', 'username', 'domain', 'authUsername', 'proxy']) {
+  editingAccountId = account ? account.id : null;
+  for (const name of ['label', 'displayName', 'username', 'domain', 'authUsername', 'proxy']) {
     form.elements[name].value = (account && account[name]) || '';
   }
   // Proxy nur anzeigen, wenn er vom Server abweicht
@@ -194,29 +247,75 @@ function showAccountForm() {
   form.elements.proxyPort.value = account && account.proxyPort !== 5060 ? account.proxyPort : '';
   form.elements.password.value = '';
   form.elements.password.placeholder = account && account.hasCredentials ? 'unverändert lassen' : '';
-  $('accountTitle').textContent = configured ? 'Konto bearbeiten' : 'SIP-Konto einrichten';
-  $('accountCancel').hidden = !configured;
+  $('accountTitle').textContent = account ? 'Konto bearbeiten' : accountConfigured() ? 'Konto hinzufügen' : 'SIP-Konto einrichten';
+  $('accountCancel').hidden = !accountConfigured();
+  $('accountDelete').hidden = !account;
   $('accountError').hidden = true;
-  editingAccount = configured;
+  editingAccount = accountConfigured();
   render();
+}
+
+function closeAccountForm() {
+  editingAccount = false;
+  editingAccountId = null;
+  if (accountConfigured()) render();
+  else showAccountForm();
+}
+
+function showAccountError(text) {
+  $('accountError').textContent = text;
+  $('accountError').hidden = false;
 }
 
 async function saveAccount(e) {
   e.preventDefault();
   $('accountSave').disabled = true;
   try {
-    const res = await window.phone.saveAccount(Object.fromEntries(new FormData($('accountForm'))));
+    const res = await window.phone.saveAccount({ ...Object.fromEntries(new FormData($('accountForm'))), id: editingAccountId });
     if (res.error) {
-      $('accountError').textContent = res.error;
-      $('accountError').hidden = false;
+      showAccountError(res.error);
       return;
     }
-    account = res.account;
-    editingAccount = false;
-    render();
+    accounts = res.accounts;
+    closeAccountForm();
   } finally {
     $('accountSave').disabled = false;
   }
+}
+
+async function deleteAccount() {
+  const account = accounts.find((a) => a.id === editingAccountId);
+  if (!account || !confirm(`Konto „${account.label}“ wirklich löschen?`)) return;
+  const res = await window.phone.deleteAccount(account.id);
+  if (res.error) {
+    showAccountError(res.error);
+    return;
+  }
+  accounts = res.accounts;
+  closeAccountForm();
+}
+
+// Kontoliste in den Einstellungen, mit Anmeldestatus je Konto.
+function renderAccountList() {
+  const status = new Map((state.accounts || []).map((a) => [a.id, a]));
+  $('accountList').replaceChildren(...accounts.map((a) => {
+    const s = status.get(a.id);
+    const item = el('div', 'account-item');
+    item.dataset.state = s ? s.state : 'idle';
+    const text = el('div', 'account-item-text');
+    const problem = s && s.state === 'failed' && s.reason ? ` – ${s.reason}` : '';
+    text.append(el('b', '', a.label), el('small', 'muted', `${a.username}@${a.domain}${problem}`));
+    const edit = el('button', 'icon-btn subtle');
+    edit.type = 'button';
+    edit.title = `${a.label} bearbeiten`;
+    edit.append(svgIcon(ICON_PATHS.edit));
+    edit.onclick = () => {
+      $('settings').close();
+      showAccountForm(a);
+    };
+    item.append(el('span', 'dot'), text, edit);
+    return item;
+  }));
 }
 
 // --- Blättern statt Scrollen ---
@@ -342,6 +441,10 @@ function setTab(tab) {
   for (const b of document.querySelectorAll('.tab')) b.classList.toggle('active', b.dataset.tab === tab);
   if (tab === 'history') markHistorySeen();
   render();
+  // Gleich aufteilen: der ResizeObserver meldet sich erst beim nächsten Zeichnen – und gar nicht,
+  // solange Windows das Fenster für verdeckt hält.
+  if (tab === 'history') historyPager.layout();
+  else if (tab === 'contacts') contactPager.layout();
 }
 
 function historySeen() {
@@ -369,8 +472,9 @@ function renderBadge() {
 // Nummer ohne eigene Domain anzeigen, fremde SIP-Adressen vollständig.
 function shortUri(uri) {
   const user = uri.replace(/^(sips?|tel):/i, '');
-  const domain = (state.registration.aor || '').split('@')[1];
-  return domain && user.endsWith(`@${domain}`) ? user.slice(0, -domain.length - 1) : user;
+  const at = user.lastIndexOf('@');
+  const ownDomains = (state.accounts || []).map((a) => a.aor.split('@')[1]);
+  return at > 0 && ownDomains.includes(user.slice(at + 1)) ? user.slice(0, at) : user;
 }
 
 function formatWhen(ts) {
@@ -399,13 +503,16 @@ function renderHistory() {
     const number = shortUri(entry.remoteUri);
     const name = entry.contactName || entry.remoteName;
     const who = el('div', 'entry-who');
-    who.append(el('b', '', name || number), el('small', 'muted', name ? number : ''));
+    const sub = [name ? number : '', multipleAccounts() ? entry.accountLabel : ''].filter(Boolean).join(' · ');
+    who.append(el('b', '', name || number), el('small', 'muted', sub));
     const meta = el('div', 'entry-meta');
     meta.append(el('small', 'muted', formatWhen(entry.at)), el('small', 'entry-status', describe(entry)));
     const callBack = el('button', 'icon-btn entry-call');
     callBack.title = 'Zurückrufen';
     callBack.append(svgIcon(ICON_PATHS.phone));
-    callBack.onclick = () => send({ type: 'dial', target: entry.remoteUri });
+    // Rückruf über das Konto, auf dem das Gespräch lief (falls es das noch gibt)
+    const known = (state.accounts || []).some((a) => a.id === entry.accountId);
+    callBack.onclick = () => send({ type: 'dial', target: entry.remoteUri, accountId: known ? entry.accountId : selectedLine() });
     li.append(dir, who, meta, callBack);
     return li;
   }));
@@ -440,7 +547,7 @@ function renderContacts() {
       const row = el('button', 'contact-number');
       row.title = `${n.number} anrufen`;
       row.append(el('small', 'muted', n.label || 'Telefon'), el('span', '', n.number), svgIcon(ICON_PATHS.phone));
-      row.onclick = () => send({ type: 'dial', target: n.dial });
+      row.onclick = () => send({ type: 'dial', target: n.dial, accountId: selectedLine() });
       numbers.append(row);
     }
     li.append(head, numbers);
@@ -867,13 +974,17 @@ $('contactForm').onsubmit = saveContact;
 $('contactCancel').onclick = () => $('contactDialog').close();
 $('contactDelete').onclick = deleteContact;
 $('accountForm').onsubmit = saveAccount;
-$('accountCancel').onclick = () => {
-  editingAccount = false;
-  render();
-};
-$('editAccount').onclick = () => {
+$('accountCancel').onclick = closeAccountForm;
+$('accountDelete').onclick = deleteAccount;
+$('addAccount').onclick = () => {
   $('settings').close();
   showAccountForm();
+};
+$('lineSelect').onchange = () => {
+  try {
+    localStorage.setItem('sipphone.line', $('lineSelect').value);
+  } catch {}
+  render();
 };
 $('clearHistory').onclick = () => confirm('Verlauf wirklich löschen?') && window.phone.clearHistory();
 window.addEventListener('focus', () => activeTab === 'history' && markHistorySeen());
@@ -929,7 +1040,7 @@ window.phone.onAudio((pcm) => {
     toast(`Audio-Initialisierung fehlgeschlagen: ${err.message}`, true);
   }
   state = await window.phone.getState();
-  account = await window.phone.getAccount();
+  accounts = await window.phone.getAccounts();
   updateVersion = await window.phone.getUpdate();
   $('appVersion').textContent = await window.phone.getVersion();
   if (!accountConfigured()) showAccountForm();

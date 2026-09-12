@@ -6,7 +6,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 
 ## Funktionen
 
-- **Registrierung** an einem SIP-Server über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash)
+- **Mehrere SIP-Konten gleichzeitig** (z. B. Firmen-Telefonanlage und FRITZ!Box daheim), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
 - **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU), Stummschalten im Gespräch
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel
@@ -16,11 +16,11 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
-- **Konto-Einrichtung** in der App; beim ersten Start werden Konto und Audiogeräte automatisch aus Linphone übernommen
+- **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim ersten Start werden Konto und Audiogeräte automatisch aus Linphone übernommen
 
 ## Installation
 
-Setup bauen (siehe unten) und `dist\SIP Phone Setup <version>.exe` ausführen. Das Setup installiert wahlweise nur für den aktuellen Benutzer (ohne Adminrechte) oder für alle Benutzer.
+`SIP-Phone-Setup-<version>.exe` von der [Release-Seite](https://github.com/mraudev/sipphone/releases) laden (oder selbst bauen, siehe unten) und ausführen. Das Setup installiert wahlweise nur für den aktuellen Benutzer (ohne Adminrechte) oder für alle Benutzer.
 
 Beim ersten Start:
 
@@ -49,7 +49,8 @@ $env:SIP_TRACE='1'; npm start
 | Datei | Aufgabe |
 |---|---|
 | `src/main.js` | Electron-Hauptprozess: Fenster, Tray, Benachrichtigungen, IPC |
-| `src/sip.js` | SIP-Stack (Transaktionen, Registrierung, Anrufe, Digest-Auth) |
+| `src/phone.js` | Mehrere Konten: je Konto eine SIP-Verbindung, höchstens ein Gespräch gleichzeitig |
+| `src/sip.js` | SIP-Stack eines Kontos (Transaktionen, Registrierung, Anrufe, Digest-Auth) |
 | `src/rtp.js`, `src/sdp.js` | RTP mit G.711-Codec, SDP-Aushandlung |
 | `src/config.js`, `src/history.js` | Einstellungen (inkl. Linphone-Import) und Gesprächsverlauf |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf 8-kHz-Telefonaudio um |
@@ -69,7 +70,7 @@ git push --follow-tags     # GitHub Actions baut und veröffentlicht das Release
 
 Alles liegt unter `%APPDATA%\SIP Phone\`:
 
-- `config.json` – Konto, Audiogeräte, Klingelton. Das Passwort wird nur verschlüsselt gespeichert (Windows DPAPI).
+- `config.json` – Konten, Audiogeräte, Klingelton. Passwörter und HA1-Hashes werden nur verschlüsselt gespeichert (Windows DPAPI).
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)
 - `contacts.json` – Telefonbuch
 - `ringtone.*` – Kopie des eigenen Klingeltons
@@ -77,6 +78,13 @@ Alles liegt unter `%APPDATA%\SIP Phone\`:
 Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\linphonerc` und übernimmt Konto und Audiogeräte. Ohne Linphone erscheint das Formular *SIP-Konto einrichten*.
 
 > Linphone-Konfigurationen (`linphonerc`, `settings_lp`) und `config.json` enthalten Zugangsdaten und dürfen nicht ins Repository – sie stehen in `.gitignore`.
+
+## FRITZ!Box als (zusätzliches) Konto
+
+Die FRITZ!Box verwaltet die Rufnummern des Internetanschlusses (z. B. Vodafone DSL); SIP Phone meldet sich bei ihr als IP-Telefon an:
+
+1. FRITZ!Box: *Telefonie → Telefoniegeräte → Neues Gerät einrichten → Telefon (mit und ohne Anrufbeantworter) → LAN/WLAN (IP-Telefon)*, Benutzername und Kennwort vergeben, ausgehende Rufnummer und die Rufnummern wählen, auf die es klingeln soll.
+2. SIP Phone: *Einstellungen → + Konto hinzufügen*, Bezeichnung z. B. „Privat“, Benutzername und Kennwort aus der FRITZ!Box, Server `fritz.box`.
 
 ## Hinweise zur Telefonanlage (Asterisk)
 
@@ -90,5 +98,5 @@ Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\li
 
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
 - Nur G.711 (PCMA/PCMU)
-- Ein Gespräch gleichzeitig; ein zweiter Anruf wird mit „besetzt“ abgewiesen
+- Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
 - Kein Halten oder Weiterleiten

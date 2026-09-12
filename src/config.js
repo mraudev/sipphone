@@ -12,7 +12,10 @@ const LINPHONE_FILES = [
 
 let configFile = null;
 
-const DEFAULTS = {
+// Ein SIP-Konto; es kann mehrere geben (cfg.accounts), alle sind gleichzeitig angemeldet.
+const ACCOUNT_DEFAULTS = {
+  id: '',
+  label: '', // frei wählbar, z. B. "Firma" oder "Privat"
   displayName: '',
   username: '',
   domain: '',
@@ -23,11 +26,33 @@ const DEFAULTS = {
   proxy: '',
   proxyPort: 5060,
   expires: 600,
-  sipPort: 0,
+};
+const ACCOUNT_KEYS = [...Object.keys(ACCOUNT_DEFAULTS), 'passwordEnc', 'ha1Enc', 'sipPort'];
+
+const DEFAULTS = {
+  accounts: [],
   // Gerätenamen wie Windows sie anzeigt; leer = Systemstandard
   audio: { microphone: '', speaker: '', ringer: '' },
   ringtone: null, // { file, name } – eigener Klingelton im App-Ordner, null = Standard
 };
+
+// Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.
+function normalizeConfig(raw) {
+  const cfg = { ...DEFAULTS, ...raw, audio: { ...DEFAULTS.audio, ...raw.audio } };
+  if (!Array.isArray(raw.accounts)) {
+    const legacy = {};
+    for (const key of ACCOUNT_KEYS) if (raw[key] !== undefined) legacy[key] = raw[key];
+    cfg.accounts = raw.username ? [legacy] : [];
+  }
+  for (const key of ACCOUNT_KEYS) delete cfg[key];
+  cfg.accounts = cfg.accounts.map((a, i) => ({
+    ...ACCOUNT_DEFAULTS,
+    ...a,
+    id: a.id || `konto-${i + 1}`,
+    label: a.label || a.domain || `Konto ${i + 1}`,
+  }));
+  return cfg;
+}
 
 // 'WASAPI: Speakers (2- Jabra Link 390) [Unknown]' -> 'Speakers (2- Jabra Link 390)'
 function linphoneDevice(id) {
@@ -59,17 +84,23 @@ function importLinphone(file) {
   const identity = /<sip:([^@>]+)@([^>;]+)>\s*$/.exec(proxy.reg_identity || '');
   const display = /\\"([^\\]+)\\"/.exec(proxy.reg_identity || '');
   const regProxy = /sip:([^;>:]+)(?::(\d+))?/.exec(proxy.reg_proxy || '');
+  const domain = identity ? identity[2] : auth.domain;
   return {
     ...DEFAULTS,
-    displayName: display ? display[1] : '',
-    username: identity ? identity[1] : auth.username,
-    domain: identity ? identity[2] : auth.domain,
-    authUsername: auth.username || '',
-    realm: auth.realm || '',
-    ha1: auth.ha1 || '',
-    proxy: regProxy ? regProxy[1] : auth.domain,
-    proxyPort: regProxy && regProxy[2] ? Number(regProxy[2]) : 5060,
-    expires: Number(proxy.reg_expires) || DEFAULTS.expires,
+    accounts: [{
+      ...ACCOUNT_DEFAULTS,
+      id: 'konto-1',
+      label: domain || 'Konto 1',
+      displayName: display ? display[1] : '',
+      username: identity ? identity[1] : auth.username,
+      domain,
+      authUsername: auth.username || '',
+      realm: auth.realm || '',
+      ha1: auth.ha1 || '',
+      proxy: regProxy ? regProxy[1] : auth.domain,
+      proxyPort: regProxy && regProxy[2] ? Number(regProxy[2]) : 5060,
+      expires: Number(proxy.reg_expires) || ACCOUNT_DEFAULTS.expires,
+    }],
     audio: {
       microphone: linphoneDevice(sound.capture_dev_id),
       speaker: linphoneDevice(sound.playback_dev_id),
@@ -82,8 +113,10 @@ function importLinphone(file) {
 function loadConfig(dir) {
   configFile = path.join(dir, 'config.json');
   if (fs.existsSync(configFile)) {
-    const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    return { ...DEFAULTS, ...cfg, audio: { ...DEFAULTS.audio, ...cfg.audio } };
+    const raw = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+    const cfg = normalizeConfig(raw);
+    if (!Array.isArray(raw.accounts)) saveConfig(cfg); // altes Einzelkonto-Format umgestellt
+    return cfg;
   }
   const linphone = LINPHONE_FILES.find((f) => fs.existsSync(f));
   const cfg = linphone ? importLinphone(linphone) : { ...DEFAULTS };
@@ -97,4 +130,4 @@ function saveConfig(cfg) {
   fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2) + '\n');
 }
 
-module.exports = { loadConfig, saveConfig };
+module.exports = { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS };

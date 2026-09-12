@@ -31,6 +31,8 @@ class CallHistory {
       duration: call.startedAt ? Math.round((Date.now() - call.startedAt) / 1000) : null,
       status,
       reason,
+      accountId: call.accountId || null,
+      accountLabel: call.accountLabel || '',
     };
     this.entries.unshift(entry);
     this.entries.length = Math.min(this.entries.length, MAX_ENTRIES);
