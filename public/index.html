@@ -19,11 +19,14 @@
       </button>
     </header>
 
-    <button id="regStatus" class="status" data-state="idle" title="">
-      <span class="dot"></span>
-      <span class="status-text">Starte …</span>
-      <span class="status-aor"></span>
-    </button>
+    <div class="status-row">
+      <button id="regStatus" class="status" data-state="idle" title="">
+        <span class="dot"></span>
+        <span class="status-text">Starte …</span>
+        <span class="status-aor"></span>
+      </button>
+      <button id="takeoverBtn" class="text-btn primary takeover" hidden>Übernehmen</button>
+    </div>
     <p id="regReason" class="reason" hidden></p>
     <div id="updateBar" class="update-bar" hidden>
       <span>Update auf <b id="updateVersion"></b> ist bereit</span>
@@ -170,6 +173,10 @@
           <button type="button" id="ringtoneReset" class="text-btn" hidden>Standard</button>
         </div>
       </div>
+      <label class="check">
+        <input type="checkbox" id="lockUnregister">
+        <span>Abmelden, solange der PC gesperrt ist<small class="muted">Ein im Büro vergessenes SIP Phone verdrängt dann nicht das im Homeoffice.</small></span>
+      </label>
       <div class="account">
         <span class="muted small">Konten</span>
         <div id="accountList" class="account-list"></div>

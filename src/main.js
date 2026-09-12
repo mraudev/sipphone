@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog, powerMonitor } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS } = require('./config');
 const { Phone } = require('./phone');
@@ -16,7 +16,7 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 const APP_ORIGIN = 'app://phone';
 const ICON = path.join(__dirname, '..', 'assets', 'icon.ico');
 const ICON_PNG = path.join(__dirname, '..', 'assets', 'icon.png');
-const REG_TEXT = { registered: 'Verbunden', registering: 'Verbinde …', unregistering: 'Melde ab …', unregistered: 'Abgemeldet', failed: 'Nicht verbunden' };
+const REG_TEXT = { registered: 'Verbunden', registering: 'Verbinde …', unregistering: 'Melde ab …', unregistered: 'Abgemeldet', failed: 'Nicht verbunden', locked: 'Abgemeldet (PC gesperrt)', elsewhere: 'An anderem Gerät angemeldet' };
 
 // Eigenes Schema statt file://, damit AudioWorklet & Co. in einem sicheren Kontext laufen.
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
@@ -37,6 +37,7 @@ let stopped = false;
 let trayHintShown = false;
 let callToast = null;
 let updateReady = null; // Version eines heruntergeladenen Updates
+let screenLocked = false;
 
 const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
@@ -113,6 +114,12 @@ function updateTray(s) {
 // Bei mehreren Konten steht in Benachrichtigungen, welches Konto gemeint ist.
 function accountHint(label) {
   return phone.lines.length > 1 && label ? `\nfür ${label}` : '';
+}
+
+// Gesperrter PC = nicht am Platz: abmelden, damit ein vergessenes SIP Phone (z. B. im Büro) nicht die
+// Anmeldung eines anderen Geräts (Homeoffice) zurückholt. Ein laufendes Gespräch geht vor.
+function applyScreenLock() {
+  if (screenLocked && cfg.lockUnregister && !phone.call) phone.lock();
 }
 
 function send(channel, data) {
@@ -453,6 +460,15 @@ if (!app.requestSingleInstanceLock()) {
       const entry = history.add(reason, call);
       send('phone:historyChanged', historyView());
       if (entry.status === 'missed') notifyMissed(entry);
+      applyScreenLock();
+    });
+    powerMonitor.on('lock-screen', () => {
+      screenLocked = true;
+      applyScreenLock();
+    });
+    powerMonitor.on('unlock-screen', () => {
+      screenLocked = false;
+      phone.unlock();
     });
     phone.on('audio', (pcm) => send('phone:audio', pcm));
 
@@ -462,6 +478,11 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:getAudio', () => cfg.audio);
     ipcMain.handle('phone:setAudio', (_e, audio) => {
       cfg.audio = { ...cfg.audio, ...audio };
+      persist();
+    });
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister }));
+    ipcMain.handle('phone:setOptions', (_e, options) => {
+      if (typeof options.lockUnregister === 'boolean') cfg.lockUnregister = options.lockUnregister;
       persist();
     });
     ipcMain.handle('phone:accounts', () => accountsView());

@@ -63,8 +63,18 @@ class Phone extends EventEmitter {
     await Promise.all(this.lines.map((l) => l.ua.stop()));
   }
 
+  // "Neu anmelden" / "Übernehmen": alle Konten anmelden, auch ruhende.
   register() {
-    for (const l of this.lines) l.ua.register();
+    for (const l of this.lines) l.ua.resume();
+  }
+
+  // PC gesperrt: alle Konten abmelden; beim Entsperren wieder anmelden.
+  async lock() {
+    await Promise.all(this.lines.map((l) => l.ua.standby('locked')));
+  }
+
+  unlock() {
+    for (const l of this.lines) if (l.ua.standbyReason === 'locked') l.ua.resume();
   }
 
   // Ohne (gültige) Kontoangabe: das erste angemeldete Konto.

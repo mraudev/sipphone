@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('phone', {
   sendAudio: (pcm) => ipcRenderer.send('phone:audio', pcm),
   getAudio: () => ipcRenderer.invoke('phone:getAudio'),
   setAudio: (audio) => ipcRenderer.invoke('phone:setAudio', audio),
+  getOptions: () => ipcRenderer.invoke('phone:getOptions'),
+  setOptions: (options) => ipcRenderer.invoke('phone:setOptions', options),
   getAccounts: () => ipcRenderer.invoke('phone:accounts'),
   saveAccount: (data) => ipcRenderer.invoke('phone:saveAccount', data),
   deleteAccount: (id) => ipcRenderer.invoke('phone:deleteAccount', id),

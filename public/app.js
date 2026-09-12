@@ -9,6 +9,8 @@ const REG_LABELS = {
   unregistering: 'Melde ab …',
   unregistered: 'Abgemeldet',
   failed: 'Nicht verbunden',
+  locked: 'Abgemeldet – PC gesperrt',
+  elsewhere: 'An anderem Gerät',
 };
 
 let state = { accounts: [], call: null }; // accounts: Anmeldestatus je Konto (id, label, aor, state, reason)
@@ -52,7 +54,8 @@ function renderStatus() {
   } else {
     if (registered === list.length) key = 'registered';
     else if (registered) key = 'partial';
-    else key = list.some((a) => a.state === 'registering') ? 'registering' : 'failed';
+    else if (list.some((a) => a.state === 'registering')) key = 'registering';
+    else key = list.every((a) => a.state === list[0].state) ? list[0].state : 'failed';
     text = registered === list.length ? 'Verbunden' : registered ? `${registered} von ${list.length} verbunden` : REG_LABELS[key];
     detail = list.map((a) => a.label).join(' · ');
   }
@@ -63,6 +66,15 @@ function renderStatus() {
   const problems = list.filter((a) => a.state === 'failed' && a.reason).map((a) => (list.length > 1 ? `${a.label}: ${a.reason}` : a.reason));
   $('regReason').hidden = !problems.length;
   $('regReason').textContent = problems.join('\n');
+  // Ein anderes Gerät hat die Anmeldung übernommen – zurückholen nur auf Knopfdruck.
+  const elsewhere = list.filter((a) => a.state === 'elsewhere');
+  const takeover = $('takeoverBtn');
+  takeover.hidden = !elsewhere.length;
+  status.querySelector('.status-aor').hidden = !!elsewhere.length;
+  status.style.paddingRight = elsewhere.length ? `${takeover.offsetWidth + 16}px` : '';
+  takeover.title = list.length > 1
+    ? `${elsewhere.map((a) => a.label).join(', ')} ${elsewhere.length > 1 ? 'sind' : 'ist'} an einem anderen Gerät angemeldet – hierher holen`
+    : 'Das Konto ist an einem anderen Gerät angemeldet – hierher holen';
   renderAccountList();
   renderLineSelect();
 }
@@ -303,8 +315,11 @@ function renderAccountList() {
     const item = el('div', 'account-item');
     item.dataset.state = s ? s.state : 'idle';
     const text = el('div', 'account-item-text');
-    const problem = s && s.state === 'failed' && s.reason ? ` – ${s.reason}` : '';
-    text.append(el('b', '', a.label), el('small', 'muted', `${a.username}@${a.domain}${problem}`));
+    let problem = '';
+    if (s && s.state === 'failed' && s.reason) problem = s.reason;
+    else if (s && (s.state === 'elsewhere' || s.state === 'locked')) problem = REG_LABELS[s.state];
+    text.append(el('b', '', a.label), el('small', 'muted', `${a.username}@${a.domain}`));
+    if (problem) text.append(el('small', 'muted account-problem', problem)); // eigene Zeile, bricht um
     const edit = el('button', 'icon-btn subtle');
     edit.type = 'button';
     edit.title = `${a.label} bearbeiten`;
@@ -991,6 +1006,8 @@ window.addEventListener('focus', () => activeTab === 'history' && markHistorySee
 $('regStatus').onclick = openSettings;
 $('settingsBtn').onclick = openSettings;
 $('reRegister').onclick = () => send({ type: 'register' });
+$('takeoverBtn').onclick = () => send({ type: 'register' });
+$('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -1033,6 +1050,7 @@ window.phone.onAudio((pcm) => {
 (async () => {
   try {
     audioCfg = await window.phone.getAudio();
+    $('lockUnregister').checked = (await window.phone.getOptions()).lockUnregister;
     await refreshDevices();
     await initAudio();
     await loadRingtone();

@@ -34,6 +34,7 @@ const DEFAULTS = {
   // Gerätenamen wie Windows sie anzeigt; leer = Systemstandard
   audio: { microphone: '', speaker: '', ringer: '' },
   ringtone: null, // { file, name } – eigener Klingelton im App-Ordner, null = Standard
+  lockUnregister: true, // solange der PC gesperrt ist, bei allen Konten abmelden
 };
 
 // Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.

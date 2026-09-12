@@ -184,6 +184,10 @@ class SipUA extends EventEmitter {
     this.regCseq = 0;
     this.proxyAddr = null;
     this.localIp = null;
+    this.instance = rand(6); // Kennung dieses Geräts im Contact, um die eigene Anmeldung wiederzuerkennen
+    this.bindingCheck = false; // true, wenn der Server die aktuelle Anmeldung samt Kennung zurückmeldet
+    this.standbyReason = null; // 'locked' | 'elsewhere' – Anmeldung ruht
+    this.regEpoch = 0; // zählt Anmeldeversuche; eine verspätete Abmeldung von davor verfällt
   }
 
   get aor() {
@@ -208,9 +212,9 @@ class SipUA extends EventEmitter {
     if (this.call) this.hangup();
     clearInterval(this.keepalive);
     clearTimeout(this.regTimer);
-    if (this.reg.state === 'registered') {
-      await Promise.race([this.register(0), new Promise((r) => setTimeout(r, 2000))]);
-    }
+    await Promise.race([this.unregister(), new Promise((r) => setTimeout(r, 2000))]);
+    // Unbeantwortete Anfragen nicht mehr wiederholen – der Socket ist gleich zu.
+    for (const key of [...this.tx.keys()]) this.finishTx(key);
     this.socket.close();
   }
 
@@ -267,7 +271,7 @@ class SipUA extends EventEmitter {
   }
 
   contactHeader() {
-    return `<sip:${this.cfg.username}@${this.localIp}:${this.localPort};transport=udp>`;
+    return `<sip:${this.cfg.username}@${this.localIp}:${this.localPort};transport=udp;line=${this.instance}>`;
   }
 
   buildRequest(method, uri, o) {
@@ -395,13 +399,16 @@ class SipUA extends EventEmitter {
     this.emitState();
   }
 
-  scheduleRegister(seconds) {
+  scheduleRegister(seconds, refresh = false) {
     clearTimeout(this.regTimer);
-    this.regTimer = setTimeout(() => this.register(), seconds * 1000);
+    this.regTimer = setTimeout(() => this.register(this.cfg.expires, refresh), seconds * 1000);
   }
 
-  async register(expires = this.cfg.expires) {
+  // refresh: turnusmäßige Erneuerung. Dann wird vorher gefragt, ob inzwischen ein anderes Gerät für das
+  // Konto angemeldet ist (z. B. Homeoffice) – dessen Anmeldung wird nicht zurückgeholt.
+  async register(expires = this.cfg.expires, refresh = false) {
     clearTimeout(this.regTimer);
+    if (expires && this.standbyReason) return;
     if (!this.cfg.proxy || !this.cfg.username) {
       this.setReg('failed', 'Kein Konto eingerichtet');
       return;
@@ -413,7 +420,38 @@ class SipUA extends EventEmitter {
       if (expires) this.scheduleRegister(30);
       return;
     }
+    if (refresh && this.bindingCheck && (await this.boundElsewhere())) {
+      if (!this.standbyReason) {
+        this.standbyReason = 'elsewhere';
+        this.setReg('elsewhere');
+      }
+      return;
+    }
+    if (expires && this.standbyReason) return;
+    if (expires) this.regEpoch++;
     this.setReg(expires ? 'registering' : 'unregistering');
+    const res = await this.registerRequest(expires);
+    if (res.status < 300) {
+      if (!expires) {
+        this.setReg(this.standbyReason || 'unregistered');
+      } else if (this.standbyReason) {
+        // Während der Anmeldung gesperrt worden -> gleich wieder abmelden
+        await this.register(0);
+        this.setReg(this.standbyReason);
+      } else {
+        this.bindingCheck = this.isOwnBinding(res);
+        this.setReg('registered');
+        this.scheduleRegister(Math.max(10, this.grantedExpires(res, expires) * 0.9), true);
+      }
+    } else {
+      const reason = res.status === 401 || res.status === 403 ? `${res.status} Zugangsdaten abgelehnt` : `${res.status} ${res.reason}`;
+      this.setReg('failed', reason);
+      if (expires) this.scheduleRegister(60);
+    }
+  }
+
+  // REGISTER mit Digest-Auth. expires === null: nur abfragen, wer angemeldet ist (ohne Contact/Expires).
+  registerRequest(expires) {
     return new Promise((resolve) => {
       const send = (auth) => {
         const req = this.buildRequest('REGISTER', `sip:${this.cfg.domain}`, {
@@ -421,8 +459,8 @@ class SipUA extends EventEmitter {
           from: `${this.fromHeader()};tag=${this.regTag}`,
           to: `<${this.aor}>`,
           cseq: ++this.regCseq,
-          contact: true,
-          extra: [['Expires', String(expires)], ...(auth ? [auth] : [])],
+          contact: expires !== null,
+          extra: [...(expires !== null ? [['Expires', String(expires)]] : []), ...(auth ? [auth] : [])],
         });
         this.sendRequest(req, (res) => {
           if (res.status < 200) return;
@@ -430,36 +468,59 @@ class SipUA extends EventEmitter {
             const a = this.authorize(req, res);
             if (a) return send(a);
           }
-          if (res.status < 300) {
-            if (expires) {
-              this.setReg('registered');
-              this.scheduleRegister(Math.max(10, this.grantedExpires(res, expires) * 0.9));
-            } else {
-              this.setReg('unregistered');
-            }
-          } else {
-            const reason = res.status === 401 || res.status === 403 ? `${res.status} Zugangsdaten abgelehnt` : `${res.status} ${res.reason}`;
-            this.setReg('failed', reason);
-            if (expires) this.scheduleRegister(60);
-          }
-          resolve();
+          resolve(res);
         });
       };
       send();
     });
   }
 
+  isOwnBinding(res) {
+    const own = new RegExp(`;line=${this.instance}\\b`);
+    return (res.headers.contact || []).some((c) => own.test(c));
+  }
+
+  // true nur, wenn der Server eine Anmeldung meldet und sie nicht von diesem Gerät stammt.
+  async boundElsewhere() {
+    const res = await this.registerRequest(null);
+    return res.status < 300 && (res.headers.contact || []).length > 0 && !this.isOwnBinding(res);
+  }
+
+  // Meldet nur die eigene Anmeldung ab: Asterisk (chan_sip) löscht bei "Expires: 0" die Anmeldung des
+  // Kontos, egal von welchem Gerät sie stammt – ein vergessenes Büro-Telefon würde sonst beim Beenden
+  // oder Sperren das Telefon im Homeoffice abmelden.
+  async unregister() {
+    if (this.reg.state !== 'registered') return;
+    const epoch = this.regEpoch;
+    if (this.bindingCheck && (await this.boundElsewhere())) return;
+    if (epoch !== this.regEpoch) return; // Abfrage kam zu spät, inzwischen neu angemeldet
+    await this.register(0);
+  }
+
+  // Anmeldung ruhen lassen, bis resume(): 'locked' = PC gesperrt ('elsewhere' setzt register() selbst).
+  async standby(reason) {
+    this.standbyReason = reason;
+    clearTimeout(this.regTimer);
+    await Promise.race([this.unregister(), new Promise((r) => setTimeout(r, 2000))]);
+    if (this.standbyReason === reason) this.setReg(reason);
+  }
+
+  resume() {
+    this.standbyReason = null;
+    return this.register();
+  }
+
   // Neues Konto/Server übernehmen: altes Konto abmelden, Änderungen in cfg übernehmen, neu registrieren.
   async reconfigure(changes) {
     clearTimeout(this.regTimer);
-    if (this.reg.state === 'registered') {
-      await Promise.race([this.register(0), new Promise((r) => setTimeout(r, 2000))]);
-    }
+    await Promise.race([this.unregister(), new Promise((r) => setTimeout(r, 2000))]);
     Object.assign(this.cfg, changes);
     this.regCallId = `${rand(12)}@sipphone`;
     this.regTag = rand(6);
     this.regCseq = 0;
     this.proxyAddr = null;
+    this.bindingCheck = false;
+    this.standbyReason = null;
     this.register();
   }
 

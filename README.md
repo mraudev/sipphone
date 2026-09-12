@@ -14,6 +14,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
+- **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
 - **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim ersten Start werden Konto und Audiogeräte automatisch aus Linphone übernommen
@@ -92,6 +93,7 @@ Die FRITZ!Box verwaltet die Rufnummern des Internetanschlusses (z. B. Vodafone D
   - chan_sip: `sendrpid=pai` (oder `yes`), optional `rpid_update=yes`
   - PJSIP: `send_pai=yes` (oder `send_rpid=yes`)
   - FreePBX: bei der Nebenstelle *Send RPID* → *Send P-Asserted-Identity header*
+- **Eine Nebenstelle auf mehreren PCs (Büro/Homeoffice):** chan_sip merkt sich pro Nebenstelle nur ein angemeldetes Gerät, Anrufe gehen an das zuletzt angemeldete. SIP Phone fragt deshalb vor jeder Erneuerung ab, wer gerade angemeldet ist, und verdrängt ein anderes Gerät nicht („An anderem Gerät“ → *Übernehmen*). Beim Beenden oder Sperren meldet es nur die eigene Anmeldung ab – `Expires: 0` würde bei chan_sip auch die des anderen Geräts löschen.
 - **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden – oder die Nummer steht im Telefonbuch, dessen Name dann Vorrang hat.
 
 ## Einschränkungen
