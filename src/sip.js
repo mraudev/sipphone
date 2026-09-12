@@ -241,11 +241,22 @@ class SipUA extends EventEmitter {
   }
 
   onMessage(buf, rinfo) {
+    // Nur der eigene Server spricht mit uns – auch externe Anrufe laufen über ihn. Pakete von anderen
+    // Adressen (SIP-Scanner, gefälschte Anrufe) werden verworfen.
+    if (rinfo.address !== this.proxyAddr) {
+      if (TRACE) console.log(`\n--- verworfen: SIP von fremder Adresse ${rinfo.address}:${rinfo.port}`);
+      return;
+    }
     const msg = parseMessage(buf);
     if (!msg) return;
     if (TRACE) console.log(`\n<<< von ${rinfo.address}:${rinfo.port}\n${buf.toString()}`);
-    if (msg.method) this.onRequest(msg, rinfo);
-    else this.onResponse(msg);
+    try {
+      if (msg.method) this.onRequest(msg, rinfo);
+      else this.onResponse(msg);
+    } catch (err) {
+      // Ein kaputtes Paket darf den Stack nicht aus dem Tritt bringen.
+      console.error('SIP-Nachricht nicht verarbeitbar:', err.message);
+    }
   }
 
   fromHeader() {
@@ -772,6 +783,8 @@ class SipUA extends EventEmitter {
   }
 
   onRequest(req, rinfo) {
+    // Ohne diese Header lässt sich weder antworten noch zuordnen.
+    if (!['via', 'from', 'to', 'call-id', 'cseq'].every((name) => header(req, name))) return;
     if (req.method !== 'ACK') {
       const key = this.stxKey(req);
       const st = this.stx.get(key);
@@ -785,7 +798,7 @@ class SipUA extends EventEmitter {
     switch (req.method) {
       case 'INVITE':
         if (parseAddr(header(req, 'to')).params.tag) this.onReInvite(req, rinfo);
-        else this.onInvite(req, rinfo);
+        else this.onInvite(req, rinfo).catch((err) => console.error('INVITE nicht verarbeitbar:', err.message));
         break;
       case 'ACK':
         this.onAck(req);
@@ -815,8 +828,12 @@ class SipUA extends EventEmitter {
       this.respond(req, rinfo, 486, 'Busy Here');
       return;
     }
-    this.respond(req, rinfo, 100, 'Trying');
     const from = remoteIdentity(req, 'from');
+    if (!from) {
+      this.respond(req, rinfo, 400, 'Bad Request');
+      return;
+    }
+    this.respond(req, rinfo, 100, 'Trying');
     const call = this.newCall('in', from.uri, from.name);
     call.callId = header(req, 'call-id');
     call.localTag = rand(6);

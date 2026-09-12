@@ -12,6 +12,7 @@ const { importOutlookContacts } = require('./outlook');
 const { readContactsCsv } = require('./csvimport');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
+const APP_ORIGIN = 'app://phone';
 const ICON = path.join(__dirname, '..', 'assets', 'icon.ico');
 const ICON_PNG = path.join(__dirname, '..', 'assets', 'icon.png');
 const REG_TEXT = { registered: 'Verbunden', registering: 'Verbinde …', unregistering: 'Melde ab …', unregistered: 'Abgemeldet', failed: 'Nicht verbunden' };
@@ -55,6 +56,11 @@ function createWindow() {
     },
   });
   win.loadURL('app://phone/index.html');
+  // Das Fenster zeigt nur die eigene Oberfläche: keine neuen Fenster, keine Navigation woandershin.
+  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  win.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith(APP_ORIGIN)) e.preventDefault();
+  });
   // Minimieren und Schließen legen die App ins Tray – sie bleibt erreichbar. Beenden über das Tray-Menü.
   win.on('minimize', hideToTray);
   win.on('close', (e) => {
@@ -214,14 +220,41 @@ function notifyMissed(entry) {
   n.show();
 }
 
-// config.json schreiben; das Passwort nur verschlüsselt (Windows DPAPI), nie im Klartext.
+// Zugangsdaten: Passwort und HA1-Hash (aus Linphone) gelten beide als Passwort fürs SIP-Konto.
+const SECRET_FIELDS = ['password', 'ha1'];
+
+// config.json schreiben; Zugangsdaten nur verschlüsselt (Windows DPAPI), nie im Klartext.
 function persist() {
   const stored = { ...cfg };
-  if (cfg.password && safeStorage.isEncryptionAvailable()) {
-    stored.passwordEnc = safeStorage.encryptString(cfg.password).toString('base64');
-    stored.password = '';
+  if (safeStorage.isEncryptionAvailable()) {
+    for (const field of SECRET_FIELDS) {
+      delete stored[`${field}Enc`];
+      if (!cfg[field]) continue;
+      stored[`${field}Enc`] = safeStorage.encryptString(cfg[field]).toString('base64');
+      stored[field] = '';
+    }
   }
   saveConfig(stored);
+}
+
+// Verschlüsselte Zugangsdaten entschlüsseln; noch im Klartext gespeicherte (ältere Versionen,
+// frischer Linphone-Import) sofort verschlüsselt neu speichern.
+function loadSecrets() {
+  if (!safeStorage.isEncryptionAvailable()) return;
+  let plaintext = false;
+  for (const field of SECRET_FIELDS) {
+    const encrypted = cfg[`${field}Enc`];
+    if (encrypted) {
+      try {
+        cfg[field] = safeStorage.decryptString(Buffer.from(encrypted, 'base64'));
+      } catch (err) {
+        console.error(`${field} konnte nicht entschlüsselt werden:`, err.message);
+      }
+    } else if (cfg[field]) {
+      plaintext = true;
+    }
+  }
+  if (plaintext) persist();
 }
 
 function accountInfo() {
@@ -359,17 +392,14 @@ if (!app.requestSingleInstanceLock()) {
       if (!file.startsWith(PUBLIC + path.sep)) return new Response('Forbidden', { status: 403 });
       return net.fetch(pathToFileURL(file).toString());
     });
-    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'));
-    session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
+    // Mikrofon nur für die eigene Oberfläche, alle anderen Berechtigungen nie.
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, cb, details) => {
+      cb(permission === 'media' && String(details && details.requestingUrl).startsWith(APP_ORIGIN));
+    });
+    session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => permission === 'media' && String(origin).startsWith(APP_ORIGIN));
 
     cfg = loadConfig(app.getPath('userData'));
-    if (cfg.passwordEnc && safeStorage.isEncryptionAvailable()) {
-      try {
-        cfg.password = safeStorage.decryptString(Buffer.from(cfg.passwordEnc, 'base64'));
-      } catch (err) {
-        console.error('Passwort konnte nicht entschlüsselt werden:', err.message);
-      }
-    }
+    loadSecrets();
     history = new CallHistory(app.getPath('userData'));
     contacts = new Contacts(app.getPath('userData'));
     ua = new SipUA(cfg);

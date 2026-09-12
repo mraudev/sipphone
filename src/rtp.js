@@ -105,6 +105,7 @@ class RtpSession extends EventEmitter {
 
   setRemote(ip, port, codec) {
     this.codec = codec;
+    this.sdpIp = ip; // nur von dieser Adresse (laut Server-SDP) werden Sprachpakete angenommen
     this.remote = port && ip && ip !== '0.0.0.0' ? { ip, port } : null;
   }
 
@@ -204,6 +205,9 @@ class RtpSession extends EventEmitter {
   }
 
   onPacket(buf, rinfo) {
+    // Nur die Adresse, die der Server in der SDP genannt hat (Server selbst, bei Direktverbindung das
+    // andere Telefon). Sonst könnte jeder, der den Port errät, den Sprachstrom auf sich umlenken.
+    if (!this.sdpIp || rinfo.address !== this.sdpIp) return;
     if (!this.codec || buf.length < 12 || buf[0] >> 6 !== 2) return;
     if ((buf[1] & 0x7f) !== this.codec.pt) return;
     let offset = 12 + (buf[0] & 0x0f) * 4;
@@ -214,7 +218,7 @@ class RtpSession extends EventEmitter {
     let end = buf.length;
     if (buf[0] & 0x20) end -= buf[end - 1];
     if (end <= offset) return;
-    // Symmetrisches RTP: dorthin senden, woher die Gegenstelle sendet (hilft bei NAT).
+    // Symmetrisches RTP: an den Port zurücksenden, von dem die Gegenstelle sendet (hilft bei NAT).
     this.remote = { ip: rinfo.address, port: rinfo.port };
     const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
     const pcm = new Int16Array(end - offset);
