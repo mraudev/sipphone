@@ -217,7 +217,7 @@ function showCallToast(call) {
     const action = details && details.actionIndex !== undefined ? details.actionIndex : index;
     if (action === 0) {
       phone.answer();
-      showWindow();
+      if (cfg.showOnCall) showWindow(); // sonst bleibt das Fenster, wo es ist (Klick auf die Meldung öffnet es)
     } else if (action === 1) {
       phone.reject();
     }
