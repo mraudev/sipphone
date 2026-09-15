@@ -94,6 +94,6 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
 ## Einschränkungen
 
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
-- G.711 (PCMA/PCMU); G.722 (HD) ist als abschaltbare Option zuschaltbar, sofern die Anlage es unterstützt (sonst automatischer Rückfall auf G.711)
+- G.722 (HD, standardmäßig an) und G.711 (PCMA/PCMU); kann die Gegenstelle kein G.722, wird automatisch auf G.711 zurückgefallen. HD ist in den Einstellungen abschaltbar
 - Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
 - Kein Halten oder Weiterleiten

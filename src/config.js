@@ -37,7 +37,7 @@ const DEFAULTS = {
   lockUnregister: true, // solange der PC gesperrt ist, bei allen Konten abmelden
   showOnCall: true, // bei eingehendem Anruf das Fenster in den Vordergrund holen (sonst nur Windows-Meldung)
   micProcessing: true, // Rausch-/Echounterdrückung und Pegelautomatik von Windows/Chromium fürs Mikrofon
-  hdVoice: false, // G.722 (Breitband) anbieten – Testbetrieb, standardmäßig aus
+  hdVoice: true, // G.722 (Breitband) bevorzugt anbieten; fällt automatisch auf G.711 zurück
 };
 
 // Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.
