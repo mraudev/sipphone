@@ -478,6 +478,8 @@ if (!app.requestSingleInstanceLock()) {
     history = new CallHistory(app.getPath('userData'));
     contacts = new Contacts(app.getPath('userData'));
     phone = new Phone(cfg.accounts);
+    phone.setHdVoice(cfg.hdVoice);
+    phone.on('format', (fmt) => send('phone:audioFormat', fmt));
     phone.on('state', (raw) => {
       const s = withContactName(raw);
       send('phone:state', s);
@@ -509,11 +511,12 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
-      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing']) {
+      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice']) {
         if (typeof options[key] === 'boolean') cfg[key] = options[key];
       }
+      if (typeof options.hdVoice === 'boolean') phone.setHdVoice(options.hdVoice);
       persist();
     });
     ipcMain.handle('phone:accounts', () => accountsView());

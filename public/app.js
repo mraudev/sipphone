@@ -29,6 +29,7 @@ let editingAccount = false;
 let editingAccountId = null;
 let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
+let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -707,6 +708,7 @@ async function startMic() {
   if (mic || !audio) return;
   mic = 'pending';
   try {
+    audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
     const id = deviceId('audioinput', audioCfg.microphone);
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -1030,6 +1032,7 @@ $('micProcessing').onchange = () => {
     updateAudio();
   }
 };
+$('hdVoice').onchange = () => window.phone.setOptions({ hdVoice: $('hdVoice').checked });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -1068,6 +1071,10 @@ window.phone.onAudio((pcm) => {
   const copy = pcm.slice();
   audio.node.port.postMessage(copy.buffer, [copy.buffer]);
 });
+window.phone.onAudioFormat((fmt) => {
+  callRate = fmt.rate || 8000;
+  if (audio) audio.node.port.postMessage({ type: 'config', rate: callRate });
+});
 
 (async () => {
   try {
@@ -1077,6 +1084,7 @@ window.phone.onAudio((pcm) => {
     $('showOnCall').checked = options.showOnCall;
     micProcessing = options.micProcessing;
     $('micProcessing').checked = micProcessing;
+    $('hdVoice').checked = options.hdVoice;
     await refreshDevices();
     await initAudio();
     await loadRingtone();

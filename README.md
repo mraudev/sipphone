@@ -7,7 +7,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 ## Funktionen
 
 - **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
-- **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU), Stummschalten im Gespräch
+- **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU) und optional G.722 (HD-Sprache, Breitband bis 7 kHz), Stummschalten im Gespräch
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar (falls sie die Stimme metallisch klingen lässt)
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
@@ -93,6 +93,6 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
 ## Einschränkungen
 
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
-- Nur G.711 (PCMA/PCMU)
+- G.711 (PCMA/PCMU); G.722 (HD) ist als abschaltbare Option zuschaltbar, sofern die Anlage es unterstützt (sonst automatischer Rückfall auf G.711)
 - Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
 - Kein Halten oder Weiterleiten

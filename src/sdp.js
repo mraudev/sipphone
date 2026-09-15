@@ -1,12 +1,19 @@
 'use strict';
 
-// Supported audio codecs in order of preference (offer order).
-const CODECS = [
-  { pt: 8, name: 'PCMA' },
-  { pt: 0, name: 'PCMU' },
+// Unterstützte Codecs. rate = Audioabtastrate, frame = PCM-Samples je 20 ms (Payload ist immer 160 Byte,
+// RTP-Zeitmarke immer +160 – auch G.722 nutzt laut RFC 3551 die 8-kHz-Zeitmarke). G.722 nur, wenn HD an ist.
+const G711 = [
+  { pt: 8, name: 'PCMA', rate: 8000, frame: 160 },
+  { pt: 0, name: 'PCMU', rate: 8000, frame: 160 },
 ];
-const STATIC_NAMES = { 0: 'PCMU', 8: 'PCMA' };
+const G722 = { pt: 9, name: 'G722', rate: 16000, frame: 320 };
+const STATIC_NAMES = { 0: 'PCMU', 8: 'PCMA', 9: 'G722' };
 const DTMF_PT = 101;
+
+// Angebots-/Akzeptanzliste: mit HD wird G.722 bevorzugt, sonst nur G.711.
+function offerCodecs(hd) {
+  return hd ? [G722, ...G711] : [...G711];
+}
 
 function parse(text) {
   let section = 'session';
@@ -48,18 +55,20 @@ function parse(text) {
   };
 }
 
-// First codec from the remote list that we support.
-function chooseCodec(remote) {
+// First codec from the remote list that we support (G.722 nur bei aktivem HD).
+function chooseCodec(remote, hd = false) {
+  const supported = offerCodecs(hd);
   for (const pt of remote.pts) {
     const name = remote.rtpmap[pt] || STATIC_NAMES[pt];
-    if (CODECS.some((c) => c.name === name)) return { pt, name };
+    const c = supported.find((x) => x.name === name);
+    if (c) return { ...c, pt };
   }
   return null;
 }
 
 // Without a negotiated codec this is an offer with all codecs, otherwise an answer.
-function build({ ip, port, sessionId, version, codec, dtmfPt, direction = 'sendrecv' }) {
-  const codecs = codec ? [codec] : CODECS;
+function build({ ip, port, sessionId, version, codec, codecs: offer, dtmfPt, direction = 'sendrecv' }) {
+  const codecs = codec ? [codec] : offer || G711;
   const dtmf = codec ? dtmfPt : DTMF_PT;
   const pts = codecs.map((c) => c.pt);
   if (dtmf !== undefined && dtmf !== null) pts.push(dtmf);
@@ -79,4 +88,4 @@ function build({ ip, port, sessionId, version, codec, dtmfPt, direction = 'sendr
   return lines.join('\r\n') + '\r\n';
 }
 
-module.exports = { parse, build, chooseCodec };
+module.exports = { parse, build, chooseCodec, offerCodecs };

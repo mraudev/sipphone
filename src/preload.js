@@ -33,4 +33,5 @@ contextBridge.exposeInMainWorld('phone', {
   onState: (cb) => ipcRenderer.on('phone:state', (_e, s) => cb(s)),
   onEnded: (cb) => ipcRenderer.on('phone:ended', (_e, reason) => cb(reason)),
   onAudio: (cb) => ipcRenderer.on('phone:audio', (_e, pcm) => cb(pcm)),
+  onAudioFormat: (cb) => ipcRenderer.on('phone:audioFormat', (_e, fmt) => cb(fmt)),
 });

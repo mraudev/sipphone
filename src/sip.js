@@ -175,6 +175,7 @@ class SipUA extends EventEmitter {
     super();
     this.cfg = cfg;
     this.isBusy = options.isBusy || (() => false);
+    this.hdVoice = false; // G.722 anbieten/annehmen (Phone setzt es aus der Konfiguration)
     this.tx = new Map(); // Client-Transaktionen
     this.stx = new Map(); // Server-Transaktionen (für Retransmits)
     this.reg = { state: 'idle', reason: '' };
@@ -555,6 +556,7 @@ class SipUA extends EventEmitter {
       sdpVersion: 0,
     };
     call.rtp.on('audio', (pcm) => this.emit('audio', pcm));
+    call.rtp.on('format', (fmt) => this.emit('format', fmt));
     this.call = call;
     return call;
   }
@@ -566,6 +568,7 @@ class SipUA extends EventEmitter {
       sessionId: call.sdpId,
       version: ++call.sdpVersion,
       codec: call.codec,
+      codecs: sdp.offerCodecs(this.hdVoice),
       dtmfPt: call.dtmfPt,
       direction: call.localDirection,
     });
@@ -584,7 +587,7 @@ class SipUA extends EventEmitter {
   applyRemoteSdp(call, body) {
     const remote = sdp.parse(body);
     if (!remote) return;
-    const codec = sdp.chooseCodec(remote);
+    const codec = sdp.chooseCodec(remote, this.hdVoice);
     if (!codec) return;
     call.codec = codec;
     call.dtmfPt = remote.dtmfPt;

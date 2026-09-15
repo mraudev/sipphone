@@ -9,13 +9,16 @@ class Phone extends EventEmitter {
   constructor(accounts) {
     super();
     this.lines = [];
+    this.hdVoice = false; // G.722 anbieten/annehmen (gilt für alle Konten)
     for (const account of accounts) this.createLine(account);
   }
 
   createLine(account) {
     const ua = new SipUA(account, { isBusy: () => !!this.call });
+    ua.hdVoice = this.hdVoice;
     ua.on('state', () => this.emitState());
     ua.on('audio', (pcm) => this.emit('audio', pcm));
+    ua.on('format', (fmt) => this.emit('format', fmt));
     ua.on('ended', (reason, call) => this.emit('ended', reason, { ...call, accountId: account.id, accountLabel: account.label }));
     const line = { account, ua };
     this.lines.push(line);
@@ -75,6 +78,12 @@ class Phone extends EventEmitter {
 
   unlock() {
     for (const l of this.lines) if (l.ua.standbyReason === 'locked') l.ua.resume();
+  }
+
+  // HD-Sprache (G.722) für alle Konten an/aus; wirkt beim nächsten Gespräch.
+  setHdVoice(on) {
+    this.hdVoice = on;
+    for (const l of this.lines) l.ua.hdVoice = on;
   }
 
   // Ohne (gültige) Kontoangabe: das erste angemeldete Konto.

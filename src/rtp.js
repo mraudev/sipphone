@@ -2,8 +2,9 @@
 const dgram = require('dgram');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
+const { G722Encoder, G722Decoder } = require('./g722');
 
-const FRAME = 160; // 20 ms @ 8 kHz
+const FRAME = 160; // Payload-Bytes und RTP-Zeitmarke je 20 ms (bei allen Codecs, auch G.722)
 // So lange ohne Mikrofon-Block -> der 20-ms-Takt sendet Stille. Deutlich länger als übliche Ruckler
 // zwischen Fenster und Hauptprozess, sonst käme nach verspäteten Blöcken zusätzliche Verzögerung dazu.
 const MIC_STALE_MS = 200;
@@ -94,8 +95,11 @@ class RtpSession extends EventEmitter {
     this.ssrc = crypto.randomBytes(4).readUInt32BE(0);
     this.seq = crypto.randomBytes(2).readUInt16BE(0);
     this.ts = crypto.randomBytes(4).readUInt32BE(0);
-    this.mic = new Int16Array(FRAME); // angefangener 20-ms-Block
+    this.mic = new Int16Array(320); // angefangener 20-ms-Block (max. 320 Samples für G.722)
     this.micLen = 0;
+    this.frameSamples = FRAME; // PCM-Samples je 20 ms (160 bei G.711, 320 bei G.722)
+    this.g722enc = null;
+    this.g722dec = null;
     this.lastMicAt = -Infinity;
     this.stats = { voice: 0, silence: 0, maxGap: 0 };
     // Empfangsstatistik (Gegenrichtung) und was die Anlage per RTCP über UNSEREN Strom zurückmeldet.
@@ -159,9 +163,16 @@ class RtpSession extends EventEmitter {
 
   setRemote(ip, port, codec) {
     this.codec = codec;
+    this.frameSamples = codec.frame || FRAME;
+    if (codec.name === 'G722' && !this.g722enc) {
+      this.g722enc = new G722Encoder();
+      this.g722dec = new G722Decoder();
+    }
     this.sdpIp = ip; // nur von dieser Adresse (laut Server-SDP) werden Sprachpakete angenommen
     this.sdpPort = port || null;
     this.remote = port && ip && ip !== '0.0.0.0' ? { ip, port } : null;
+    // Renderer über die Audioabtastrate informieren (8 kHz bei G.711, 16 kHz bei G.722).
+    this.emit('format', { rate: codec.rate || 8000 });
   }
 
   // Gesendet wird im Takt des Mikrofons: jeder volle 20-ms-Block geht sofort raus. So entstehen keine
@@ -178,7 +189,7 @@ class RtpSession extends EventEmitter {
       } else {
         if (now - next > 200) next = now;
         while (next <= now) {
-          this.sendFrame(new Int16Array(FRAME));
+          this.sendFrame(new Int16Array(this.frameSamples));
           this.stats.silence++;
           next += 20;
         }
@@ -195,12 +206,12 @@ class RtpSession extends EventEmitter {
     if (this.lastMicAt > -Infinity) this.stats.maxGap = Math.max(this.stats.maxGap, now - this.lastMicAt);
     this.lastMicAt = now;
     for (let offset = 0; offset < samples.length;) {
-      const n = Math.min(FRAME - this.micLen, samples.length - offset);
+      const n = Math.min(this.frameSamples - this.micLen, samples.length - offset);
       this.mic.set(samples.subarray(offset, offset + n), this.micLen);
       this.micLen += n;
       offset += n;
-      if (this.micLen === FRAME) {
-        this.sendFrame(this.mic);
+      if (this.micLen === this.frameSamples) {
+        this.sendFrame(this.mic.subarray(0, this.frameSamples));
         this.stats.voice++;
         this.micLen = 0;
       }
@@ -226,8 +237,12 @@ class RtpSession extends EventEmitter {
       packet.writeUInt16BE(this.seq, 2);
       packet.writeUInt32BE(this.ts, 4);
       packet.writeUInt32BE(this.ssrc, 8);
-      const encode = this.codec.name === 'PCMU' ? linearToUlaw : linearToAlaw;
-      for (let i = 0; i < FRAME; i++) packet[12 + i] = encode(frame[i]);
+      if (this.codec.name === 'G722') {
+        packet.set(this.g722enc.encode(frame), 12); // 320 Samples -> 160 Byte
+      } else {
+        const encode = this.codec.name === 'PCMU' ? linearToUlaw : linearToAlaw;
+        for (let i = 0; i < FRAME; i++) packet[12 + i] = encode(frame[i]);
+      }
       this.socket.send(packet, this.remote.port, this.remote.ip);
       this.marker = false;
     }
@@ -278,9 +293,14 @@ class RtpSession extends EventEmitter {
     this.remote = { ip: rinfo.address, port: rinfo.port };
     this.remoteSsrc = buf.readUInt32BE(8);
     this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4), (buf[1] & 0x80) !== 0);
-    const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
-    const pcm = new Int16Array(end - offset);
-    for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
+    let pcm;
+    if (this.codec.name === 'G722') {
+      pcm = this.g722dec.decode(buf.subarray(offset, end)); // 160 Byte -> 320 Samples
+    } else {
+      const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
+      pcm = new Int16Array(end - offset);
+      for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
+    }
     this.emit('audio', pcm);
   }
 
