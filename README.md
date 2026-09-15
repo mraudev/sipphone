@@ -9,7 +9,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
 - **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU), Stummschalten im Gespräch
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
-- **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel
+- **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar (falls sie die Stimme metallisch klingen lässt)
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen

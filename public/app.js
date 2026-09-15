@@ -28,6 +28,7 @@ let accounts = []; // Kontodaten fürs Formular (ohne Zugangsdaten)
 let editingAccount = false;
 let editingAccountId = null;
 let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
+let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -710,9 +711,9 @@ async function startMic() {
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: id ? { exact: id } : undefined,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: micProcessing,
+        noiseSuppression: micProcessing,
+        autoGainControl: micProcessing,
         channelCount: 1,
       },
     });
@@ -1021,6 +1022,14 @@ $('reRegister').onclick = () => send({ type: 'register' });
 $('takeoverBtn').onclick = () => send({ type: 'register' });
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
 $('showOnCall').onchange = () => window.phone.setOptions({ showOnCall: $('showOnCall').checked });
+$('micProcessing').onchange = () => {
+  micProcessing = $('micProcessing').checked;
+  window.phone.setOptions({ micProcessing });
+  if (mic) { // im Gespräch sofort mit neuer Einstellung neu aufnehmen
+    stopMic();
+    updateAudio();
+  }
+};
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -1066,6 +1075,8 @@ window.phone.onAudio((pcm) => {
     const options = await window.phone.getOptions();
     $('lockUnregister').checked = options.lockUnregister;
     $('showOnCall').checked = options.showOnCall;
+    micProcessing = options.micProcessing;
+    $('micProcessing').checked = micProcessing;
     await refreshDevices();
     await initAudio();
     await loadRingtone();

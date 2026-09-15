@@ -36,6 +36,7 @@ const DEFAULTS = {
   ringtone: null, // { file, name } – eigener Klingelton im App-Ordner, null = Standard
   lockUnregister: true, // solange der PC gesperrt ist, bei allen Konten abmelden
   showOnCall: true, // bei eingehendem Anruf das Fenster in den Vordergrund holen (sonst nur Windows-Meldung)
+  micProcessing: true, // Rausch-/Echounterdrückung und Pegelautomatik von Windows/Chromium fürs Mikrofon
 };
 
 // Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.
