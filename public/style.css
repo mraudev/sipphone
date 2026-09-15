@@ -167,6 +167,27 @@ body { overflow: hidden; }
 #number::placeholder { font-size: 16px; color: var(--muted); letter-spacing: 0; }
 .number-row .icon-btn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 
+/* Vorschläge beim Tippen (Telefonbuch + Verlauf) */
+.suggest {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+  max-height: 244px; overflow-y: auto;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}
+.suggest-item {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line);
+  background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer;
+}
+.suggest-item:last-child { border-bottom: 0; }
+.suggest-item:hover { background: var(--card); }
+.suggest-item .contact-avatar { width: 30px; height: 30px; font-size: 12px; flex: none; }
+.suggest-item .s-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.suggest-item .s-text > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.suggest-item .s-name { font-weight: 600; }
+.suggest-item .s-sub { color: var(--muted); font-size: 12px; }
+.suggest-item svg { color: var(--green); flex: none; }
+
 .keypad {
   margin: 22px 0 24px;
   display: grid; grid-template-columns: repeat(3, 72px); gap: 14px 22px;

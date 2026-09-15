@@ -245,7 +245,73 @@ function sendDtmf(digit) {
 function dial() {
   const target = $('number').value.trim();
   if (!target) return;
+  hideSuggest();
   send({ type: 'dial', target, accountId: selectedLine() });
+}
+
+// --- Vorschläge beim Tippen: Abgleich mit Telefonbuch und Verlauf ---
+
+// Liefert bis zu 6 Treffer für die Eingabe. Buchstaben -> Namenssuche, Ziffern -> Nummernsuche.
+function numberSuggestions(input) {
+  const q = input.trim().toLowerCase();
+  if (!q) return [];
+  const digits = input.replace(/\D/g, '');
+  const hasLetters = /[a-zA-Z]/.test(input);
+  const out = [];
+  const seen = new Set();
+  const add = (name, sub, number, target, accountId) => {
+    const nd = number.replace(/\D/g, '');
+    const key = nd.length >= 4 ? nd.slice(-9) : (target || number).toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name, sub, number, target, accountId });
+  };
+  for (const c of contacts) {
+    const nameHit = hasLetters && (c.name.toLowerCase().includes(q) || (c.company || '').toLowerCase().includes(q));
+    for (const n of c.numbers) {
+      if (nameHit || (digits.length >= 2 && n.dial.includes(digits))) add(c.name, n.label || 'Telefon', n.number, n.dial);
+    }
+  }
+  for (const e of history) { // history ist bereits neueste zuerst
+    const name = e.contactName || e.remoteName || '';
+    const num = shortUri(e.remoteUri);
+    const nameHit = hasLetters && name.toLowerCase().includes(q);
+    if (nameHit || (digits.length >= 2 && num.replace(/\D/g, '').includes(digits))) add(name || num, 'Verlauf', num, e.remoteUri, e.accountId);
+    if (out.length >= 6) break;
+  }
+  return out.slice(0, 6);
+}
+
+function hideSuggest() {
+  $('numberSuggest').hidden = true;
+  $('numberSuggest').replaceChildren();
+}
+
+function renderSuggest() {
+  const box = $('numberSuggest');
+  const list = state.call ? [] : numberSuggestions($('number').value);
+  if (!list.length) {
+    hideSuggest();
+    return;
+  }
+  box.replaceChildren(...list.map((s) => {
+    const item = el('button', 'suggest-item');
+    item.type = 'button';
+    item.append(el('span', 'contact-avatar', initials(s.name)));
+    const text = el('div', 's-text');
+    text.append(el('span', 's-name', s.name), el('span', 's-sub', `${s.sub} · ${s.number}`));
+    item.append(text, svgIcon(ICON_PATHS.phone));
+    // Klick würde sonst das Feld unscharf schalten, bevor er ankommt -> auf mousedown wählen.
+    item.onmousedown = (e) => {
+      e.preventDefault();
+      const known = (state.accounts || []).some((a) => a.id === s.accountId);
+      $('number').value = s.number;
+      hideSuggest();
+      send({ type: 'dial', target: s.target, accountId: known ? s.accountId : selectedLine() });
+    };
+    return item;
+  }));
+  box.hidden = false;
 }
 
 // --- Konten ---
@@ -964,6 +1030,7 @@ function stopMeter() {
 buildKeypad($('keypad'), (digit) => {
   $('number').value += digit;
   $('number').focus();
+  renderSuggest();
 });
 buildKeypad($('callKeypad'), sendDtmf);
 $('keypadBtn').onclick = () => setDtmfOpen(!dtmfOpen);
@@ -978,7 +1045,13 @@ document.addEventListener('keydown', (e) => {
 });
 $('callBtn').onclick = dial;
 $('number').addEventListener('keydown', (e) => e.key === 'Enter' && dial());
-$('backspace').onclick = () => ($('number').value = $('number').value.slice(0, -1));
+$('number').addEventListener('input', renderSuggest);
+$('number').addEventListener('focus', renderSuggest);
+$('number').addEventListener('blur', hideSuggest);
+$('backspace').onclick = () => {
+  $('number').value = $('number').value.slice(0, -1);
+  renderSuggest();
+};
 $('answerBtn').onclick = () => send({ type: 'answer' });
 $('hangupBtn').onclick = () => send({ type: 'hangup' });
 $('muteBtn').onclick = () => setMuted(!muted);
