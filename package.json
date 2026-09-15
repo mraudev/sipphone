@@ -1,7 +1,7 @@
 {
   "name": "sipphone",
   "productName": "SIP Phone",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
   "description": "SIP-Softphone als Desktop-App",
   "author": "Michael Rau",

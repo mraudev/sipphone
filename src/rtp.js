@@ -99,9 +99,13 @@ class RtpSession extends EventEmitter {
     this.lastMicAt = -Infinity;
     this.stats = { voice: 0, silence: 0, maxGap: 0 };
     // Empfangsstatistik (Gegenrichtung) und was die Anlage per RTCP über UNSEREN Strom zurückmeldet.
-    this.rx = { received: 0, lost: 0, expected: 0, transit: null, jitter: 0, maxJitter: 0 };
+    this.rx = { received: 0, lost: 0, expected: 0, lastSeq: 0, lastArrival: null, lastTs: 0, jitter: 0, maxJitter: 0 };
     this.report = { count: 0, lost: 0, fraction: 0, maxJitterMs: 0 };
     this.rtcp = null;
+    this.rtcpTimer = null;
+    this.remoteSsrc = null; // SSRC der Gegenstelle (aus empfangenem RTP), für eigene RTCP-Berichte
+    this.sdpPort = null; // RTP-Port der Gegenstelle laut SDP (RTCP dorthin auf Port+1)
+    this.rtcpSeen = false;
     this.marker = true;
     this.remote = null;
     this.codec = null;
@@ -142,6 +146,7 @@ class RtpSession extends EventEmitter {
       this.rtcp.on('message', (buf, rinfo) => this.onRtcp(buf, rinfo));
       this.socket.on('error', () => {});
       this.rtcp.on('error', () => {});
+      console.log(`RTP-Ports: ${this.port} (RTP) / ${this.port + 1} (RTCP)`);
       return;
     }
     // Kein Paar frei bekommen: RTP allein, ohne RTCP-Auswertung.
@@ -149,11 +154,13 @@ class RtpSession extends EventEmitter {
     this.socket.on('message', (buf, rinfo) => this.onPacket(buf, rinfo));
     await bindSocket(this.socket, 0);
     this.port = this.socket.address().port;
+    console.log(`RTP-Port: ${this.port} (kein RTCP-Port verfügbar)`);
   }
 
   setRemote(ip, port, codec) {
     this.codec = codec;
     this.sdpIp = ip; // nur von dieser Adresse (laut Server-SDP) werden Sprachpakete angenommen
+    this.sdpPort = port || null;
     this.remote = port && ip && ip !== '0.0.0.0' ? { ip, port } : null;
   }
 
@@ -179,6 +186,7 @@ class RtpSession extends EventEmitter {
       this.timer = setTimeout(tick, Math.max(1, next - performance.now()));
     };
     tick();
+    if (this.rtcp) this.rtcpTimer = setInterval(() => this.sendReceiverReport(), 5000);
   }
 
   pushMic(samples) {
@@ -268,7 +276,8 @@ class RtpSession extends EventEmitter {
     if (end <= offset) return;
     // Symmetrisches RTP: an den Port zurücksenden, von dem die Gegenstelle sendet (hilft bei NAT).
     this.remote = { ip: rinfo.address, port: rinfo.port };
-    this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4));
+    this.remoteSsrc = buf.readUInt32BE(8);
+    this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4), (buf[1] & 0x80) !== 0);
     const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
     const pcm = new Int16Array(end - offset);
     for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
@@ -277,8 +286,9 @@ class RtpSession extends EventEmitter {
 
   // Empfangene Pakete zählen und den Jitter der Gegenrichtung schätzen (RFC 3550). Verluste ergeben sich
   // aus Lücken in den Sequenznummern; verspätet/doppelt eintreffende Pakete werden dabei übergangen.
-  countReceived(seq, ts) {
+  countReceived(seq, ts, marker) {
     this.rx.received++;
+    this.rx.lastSeq = seq;
     if (this.rx.received === 1) {
       this.rx.expected = (seq + 1) & 0xffff;
     } else {
@@ -288,19 +298,50 @@ class RtpSession extends EventEmitter {
         this.rx.expected = (seq + 1) & 0xffff;
       }
     }
-    const arrival = performance.now() * 8; // 8 kHz: 8 Zeitmarken-Einheiten je Millisekunde
-    const transit = arrival - ts;
-    if (this.rx.transit !== null) {
-      const d = Math.abs(transit - this.rx.transit);
-      this.rx.jitter += (d - this.rx.jitter) / 16;
-      if (this.rx.jitter > this.rx.maxJitter) this.rx.maxJitter = this.rx.jitter;
+    // Jitter aus der Abweichung zwischen Ankunftsabstand und Zeitstempelabstand. Die Zeitstempeldifferenz
+    // wird als 32-Bit-Wert gelesen (Überlauf), und der erste Block einer Sprechpause (Marker) sowie große
+    // Sprünge werden übergangen – sonst käme durch den Zeitstempelsprung ein unsinnig hoher Wert heraus.
+    const now = performance.now();
+    if (this.rx.lastArrival !== null && !marker) {
+      let dts = (ts - this.rx.lastTs) & 0xffffffff;
+      if (dts >= 0x80000000) dts -= 0x100000000;
+      const d = Math.abs((now - this.rx.lastArrival) * 8 - dts);
+      if (d < 8000) {
+        this.rx.jitter += (d - this.rx.jitter) / 16;
+        if (this.rx.jitter > this.rx.maxJitter) this.rx.maxJitter = this.rx.jitter;
+      }
     }
-    this.rx.transit = transit;
+    this.rx.lastArrival = now;
+    this.rx.lastTs = ts;
+  }
+
+  // Kleiner eigener Empfangsbericht (RR) an die Gegenstelle. Das bringt Asterisk dazu, seinerseits
+  // Berichte zu schicken, und öffnet die Firewall/NAT für eingehendes RTCP.
+  sendReceiverReport() {
+    const dest = this.remote && this.sdpPort ? { ip: this.remote.ip, port: this.sdpPort + 1 } : null;
+    if (!this.rtcp || !dest || this.remoteSsrc === null) return;
+    const p = Buffer.alloc(32);
+    p[0] = 0x81; // Version 2, 1 Block
+    p[1] = 201; // RR
+    p.writeUInt16BE(32 / 4 - 1, 2);
+    p.writeUInt32BE(this.ssrc, 4);
+    p.writeUInt32BE(this.remoteSsrc, 8);
+    p.writeUInt8(0, 12); // Verlustanteil vereinfachend 0
+    p.writeUIntBE(Math.min(Math.max(this.rx.lost, 0), 0xffffff), 13, 3);
+    p.writeUInt32BE(this.rx.lastSeq >>> 0, 16);
+    p.writeUInt32BE(Math.round(this.rx.jitter) >>> 0, 20);
+    try {
+      this.rtcp.send(p, dest.port, dest.ip);
+    } catch {}
   }
 
   // RTCP von der Anlage: aus den Empfangsberichten (SR/RR) lesen, was die Anlage über UNSEREN Strom
   // meldet – verlorene Pakete und Jitter der Sendestrecke. Das zeigt, ob Aussetzer auf dem Weg entstehen.
   onRtcp(buf, rinfo) {
+    if (!this.rtcpSeen) {
+      this.rtcpSeen = true;
+      console.log(`Erstes RTCP von ${rinfo.address}:${rinfo.port}${rinfo.address === this.sdpIp ? '' : ` (erwartet ${this.sdpIp}, wird verworfen)`}`);
+    }
     if (!this.sdpIp || rinfo.address !== this.sdpIp) return;
     let off = 0;
     while (off + 4 <= buf.length) {
@@ -345,6 +386,7 @@ class RtpSession extends EventEmitter {
     if (this.timer && !this.closed) this.logStats();
     this.closed = true;
     clearTimeout(this.timer);
+    clearInterval(this.rtcpTimer);
     this.removeAllListeners();
     if (this.socket) this.socket.close();
     if (this.rtcp) this.rtcp.close();
