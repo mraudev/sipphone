@@ -607,7 +607,8 @@ class SipUA extends EventEmitter {
     const codec = sdp.chooseCodec(remote, this.hdVoice);
     if (!codec) return;
     call.codec = codec;
-    call.dtmfPt = remote.dtmfPt;
+    // Bei Opus (48-kHz-Takt) Tastentöne über SIP INFO statt RFC 4733 (telephone-event ist 8-kHz-getaktet).
+    call.dtmfPt = codec.name === 'OPUS' ? undefined : remote.dtmfPt;
     call.localDirection = { sendonly: 'recvonly', recvonly: 'sendonly', inactive: 'inactive' }[remote.direction] || 'sendrecv';
     call.rtp.setRemote(remote.ip, remote.port, codec);
   }

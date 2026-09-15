@@ -75,7 +75,11 @@ class PhoneProcessor extends AudioWorkletProcessor {
     this.prebuffer = Math.round(rate * 0.06); // 60 ms
     this.maxLatency = Math.round(rate * 0.3); // 300 ms
     this.targetLatency = Math.round(rate * 0.1); // 100 ms
-    // Telefonband bis knapp unter die halbe Codec-Rate: 3,4/4,6 kHz bei 8 kHz, 7,0/7,8 kHz bei 16 kHz.
+    this.capLen = 0;
+    // Codec-Rate = Kontext-Rate (Opus 48 kHz): direkt durchreichen, kein Tiefpass/Umrechnen (Fullband).
+    this.passthrough = rate === sampleRate;
+    if (this.passthrough) return;
+    // Sonst Telefonband bis knapp unter die halbe Codec-Rate: 3,4/4,6 kHz bei 8 kHz, 7,0/7,8 kHz bei 16 kHz.
     const pass = rate >= 16000 ? 7000 : 3400;
     const stop = rate >= 16000 ? 7800 : 4600;
     this.dec = designDecimator(sampleRate, rate, pass, stop);
@@ -85,7 +89,6 @@ class PhoneProcessor extends AudioWorkletProcessor {
     this.inCount = 0;
     this.outInt = 0;
     this.outFrac = 0;
-    this.capLen = 0;
   }
 
   available() {
@@ -103,6 +106,17 @@ class PhoneProcessor extends AudioWorkletProcessor {
   }
 
   capture(input) {
+    if (this.passthrough) {
+      for (let i = 0; i < input.length; i++) {
+        this.cap[this.capLen++] = Math.max(-1, Math.min(1, input[i])) * 32767;
+        if (this.capLen === FRAME) {
+          this.port.postMessage(this.cap.buffer, [this.cap.buffer]);
+          this.cap = new Int16Array(FRAME);
+          this.capLen = 0;
+        }
+      }
+      return;
+    }
     const { half, taps, phases, kernel } = this.dec;
     const hist = this.hist;
     for (let i = 0; i < input.length; i++) {

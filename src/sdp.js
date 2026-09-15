@@ -1,18 +1,20 @@
 'use strict';
 
-// Unterstützte Codecs. rate = Audioabtastrate, frame = PCM-Samples je 20 ms (Payload ist immer 160 Byte,
-// RTP-Zeitmarke immer +160 – auch G.722 nutzt laut RFC 3551 die 8-kHz-Zeitmarke). G.722 nur, wenn HD an ist.
+// Unterstützte Codecs. rate = Audioabtastrate, frame = PCM-Samples je 20 ms. clock = RTP-Zeittakt.
+// rtpName = Name in der SDP. G.711/G.722 haben feste 160-Byte-Payload; Opus ist variabel (Fullband,
+// mit Fehlerkorrektur/Paketverlust-Verdeckung). HD-Reihenfolge: Opus vor G.722 vor G.711.
 const G711 = [
-  { pt: 8, name: 'PCMA', rate: 8000, frame: 160 },
-  { pt: 0, name: 'PCMU', rate: 8000, frame: 160 },
+  { pt: 8, name: 'PCMA', rate: 8000, frame: 160, clock: 8000, rtpName: 'PCMA' },
+  { pt: 0, name: 'PCMU', rate: 8000, frame: 160, clock: 8000, rtpName: 'PCMU' },
 ];
-const G722 = { pt: 9, name: 'G722', rate: 16000, frame: 320 };
+const G722 = { pt: 9, name: 'G722', rate: 16000, frame: 320, clock: 8000, rtpName: 'G722' };
+const OPUS = { pt: 111, name: 'OPUS', rate: 48000, frame: 960, clock: 48000, rtpName: 'opus', channels: 2, fmtp: 'useinbandfec=1' };
 const STATIC_NAMES = { 0: 'PCMU', 8: 'PCMA', 9: 'G722' };
 const DTMF_PT = 101;
 
-// Angebots-/Akzeptanzliste: mit HD wird G.722 bevorzugt, sonst nur G.711.
+// Angebots-/Akzeptanzliste: mit HD Opus bevorzugt, dann G.722, sonst nur G.711.
 function offerCodecs(hd) {
-  return hd ? [G722, ...G711] : [...G711];
+  return hd ? [OPUS, G722, ...G711] : [...G711];
 }
 
 function parse(text) {
@@ -79,8 +81,11 @@ function build({ ip, port, sessionId, version, codec, codecs: offer, dtmfPt, dir
     `c=IN IP4 ${ip}`,
     't=0 0',
     `m=audio ${port} RTP/AVP ${pts.join(' ')}`,
-    ...codecs.map((c) => `a=rtpmap:${c.pt} ${c.name}/8000`),
   ];
+  for (const c of codecs) {
+    lines.push(`a=rtpmap:${c.pt} ${c.rtpName || c.name}/${c.clock || 8000}${c.channels ? `/${c.channels}` : ''}`);
+    if (c.fmtp) lines.push(`a=fmtp:${c.pt} ${c.fmtp}`);
+  }
   if (dtmf !== undefined && dtmf !== null) {
     lines.push(`a=rtpmap:${dtmf} telephone-event/8000`, `a=fmtp:${dtmf} 0-16`);
   }

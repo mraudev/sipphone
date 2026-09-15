@@ -852,7 +852,8 @@ async function runImport(kind) {
 // --- Audio ---
 
 async function initAudio() {
-  const ctx = new AudioContext({ latencyHint: 'interactive' });
+  // 48 kHz erzwingen: dann sind alle Codec-Raten (8/16/48 kHz) ganzzahlige Teiler und Opus läuft direkt.
+  const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
   await ctx.audioWorklet.addModule('audio-worklet.js');
   const node = new AudioWorkletNode(ctx, 'phone', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
   node.connect(ctx.destination);

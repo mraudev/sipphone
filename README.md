@@ -7,7 +7,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 ## Funktionen
 
 - **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
-- **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU) und optional G.722 (HD-Sprache, Breitband bis 7 kHz), Stummschalten im Gespräch
+- **Telefonieren** ein- und ausgehend, Audio wahlweise mit Opus (HD, Fullband, robust gegen Paketverluste), G.722 (HD, Breitband bis 7 kHz) oder G.711 (PCMA/PCMU) – der beste von der Anlage unterstützte Codec wird automatisch gewählt; Stummschalten im Gespräch
 - **Halten und Weiterleiten**: Gespräch halten (die Anlage spielt der Gegenstelle Wartemusik), blind weiterleiten oder mit Rückfrage weiterleiten (erst mit dem Ziel sprechen, dann verbinden) – jeweils an Nummer oder Kontakt mit Vorschlägen
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; Mikrofon und Lautsprecher lassen sich auch **während eines Gesprächs** wechseln (z. B. vom Headset auf Laptop-Lautsprecher zum Freisprechen), und die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
@@ -56,7 +56,8 @@ $env:SIP_TRACE='1'; npm start
 | `src/sip.js` | SIP-Stack eines Kontos (Transaktionen, Registrierung, Anrufe, Digest-Auth) |
 | `src/rtp.js`, `src/sdp.js` | RTP mit G.711-Codec, SDP-Aushandlung |
 | `src/config.js`, `src/history.js` | Einstellungen und Gesprächsverlauf |
-| `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf 8-kHz-Telefonaudio um |
+| `src/g722.js` | G.722-Codec (Breitband) |
+| `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf die Codec-Rate (8/16/48 kHz) um |
 
 ## Updates
 
@@ -95,6 +96,6 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
 ## Einschränkungen
 
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
-- G.722 (HD, standardmäßig an) und G.711 (PCMA/PCMU); kann die Gegenstelle kein G.722, wird automatisch auf G.711 zurückgefallen. HD ist in den Einstellungen abschaltbar
+- Codecs: Opus (bevorzugt) und G.722 (beide HD) sowie G.711 (PCMA/PCMU); es wird automatisch der beste von der Gegenstelle unterstützte Codec gewählt, sonst Rückfall bis G.711. HD ist in den Einstellungen abschaltbar
 - Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
 - Ein reguläres Gespräch gleichzeitig (plus ein Rückfragegespräch beim Weiterleiten); kein Konferenzgespräch

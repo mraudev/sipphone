@@ -1,7 +1,7 @@
 {
   "name": "sipphone",
   "productName": "SIP Phone",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "description": "SIP-Softphone als Desktop-App",
   "author": "Michael Rau",
@@ -23,6 +23,9 @@
     "directories": {
       "output": "dist"
     },
+    "asarUnpack": [
+      "**/node_modules/opusscript/**"
+    ],
     "publish": [
       {
         "provider": "github",
@@ -61,6 +64,7 @@
     "electron-builder": "^26.15.3"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "opusscript": "^0.0.8"
   }
 }

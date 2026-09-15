@@ -3,8 +3,9 @@ const dgram = require('dgram');
 const crypto = require('crypto');
 const { EventEmitter } = require('events');
 const { G722Encoder, G722Decoder } = require('./g722');
+let OpusScript = null; // erst bei Bedarf laden (WASM); fehlt es, wird Opus nicht angeboten/genutzt
 
-const FRAME = 160; // Payload-Bytes und RTP-Zeitmarke je 20 ms (bei allen Codecs, auch G.722)
+const FRAME = 160; // Payload-Bytes/Zeitmarke je 20 ms bei G.711/G.722; Opus hat eigenen Takt (siehe tsInc)
 // So lange ohne Mikrofon-Block -> der 20-ms-Takt sendet Stille. Deutlich länger als übliche Ruckler
 // zwischen Fenster und Hauptprozess, sonst käme nach verspäteten Blöcken zusätzliche Verzögerung dazu.
 const MIC_STALE_MS = 200;
@@ -95,11 +96,14 @@ class RtpSession extends EventEmitter {
     this.ssrc = crypto.randomBytes(4).readUInt32BE(0);
     this.seq = crypto.randomBytes(2).readUInt16BE(0);
     this.ts = crypto.randomBytes(4).readUInt32BE(0);
-    this.mic = new Int16Array(320); // angefangener 20-ms-Block (max. 320 Samples für G.722)
+    this.mic = new Int16Array(960); // angefangener 20-ms-Block (max. 960 Samples für Opus/48 kHz)
     this.micLen = 0;
-    this.frameSamples = FRAME; // PCM-Samples je 20 ms (160 bei G.711, 320 bei G.722)
+    this.frameSamples = FRAME; // PCM-Samples je 20 ms (160 G.711, 320 G.722, 960 Opus)
+    this.tsInc = FRAME; // RTP-Zeitmarke je Paket (160 bei 8-kHz-Takt, 960 bei Opus/48 kHz)
     this.g722enc = null;
     this.g722dec = null;
+    this.opusEnc = null;
+    this.opusDec = null;
     this.lastMicAt = -Infinity;
     this.stats = { voice: 0, silence: 0, maxGap: 0 };
     // Empfangsstatistik (Gegenrichtung) und was die Anlage per RTCP über UNSEREN Strom zurückmeldet.
@@ -164,9 +168,15 @@ class RtpSession extends EventEmitter {
   setRemote(ip, port, codec) {
     this.codec = codec;
     this.frameSamples = codec.frame || FRAME;
+    this.tsInc = codec.clock ? codec.clock / 50 : FRAME; // Zeitmarke je 20 ms = Takt/50
     if (codec.name === 'G722' && !this.g722enc) {
       this.g722enc = new G722Encoder();
       this.g722dec = new G722Decoder();
+    }
+    if (codec.name === 'OPUS' && !this.opusEnc) {
+      OpusScript = OpusScript || require('opusscript');
+      this.opusEnc = new OpusScript(48000, 1, OpusScript.Application.VOIP);
+      this.opusDec = new OpusScript(48000, 1, OpusScript.Application.VOIP);
     }
     this.sdpIp = ip; // nur von dieser Adresse (laut Server-SDP) werden Sprachpakete angenommen
     this.sdpPort = port || null;
@@ -231,23 +241,31 @@ class RtpSession extends EventEmitter {
     // Während eines Tastentons ersetzt das telephone-event-Paket das Sprachpaket.
     if (this.dtmf) this.sendDtmfPacket();
     else if (this.remote && this.codec) {
-      const packet = Buffer.alloc(12 + FRAME);
+      const payload = this.encodePayload(frame);
+      const packet = Buffer.alloc(12 + payload.length);
       packet[0] = 0x80;
       packet[1] = (this.marker ? 0x80 : 0) | this.codec.pt;
       packet.writeUInt16BE(this.seq, 2);
       packet.writeUInt32BE(this.ts, 4);
       packet.writeUInt32BE(this.ssrc, 8);
-      if (this.codec.name === 'G722') {
-        packet.set(this.g722enc.encode(frame), 12); // 320 Samples -> 160 Byte
-      } else {
-        const encode = this.codec.name === 'PCMU' ? linearToUlaw : linearToAlaw;
-        for (let i = 0; i < FRAME; i++) packet[12 + i] = encode(frame[i]);
-      }
+      payload.copy(packet, 12);
       this.socket.send(packet, this.remote.port, this.remote.ip);
       this.marker = false;
     }
     this.seq = (this.seq + 1) & 0xffff;
-    this.ts = (this.ts + FRAME) >>> 0;
+    this.ts = (this.ts + this.tsInc) >>> 0;
+  }
+
+  // frame: Int16Array (frameSamples). Rückgabe: Buffer mit der RTP-Payload.
+  encodePayload(frame) {
+    if (this.codec.name === 'OPUS') {
+      return this.opusEnc.encode(Buffer.from(frame.buffer, frame.byteOffset, frame.length * 2), frame.length);
+    }
+    if (this.codec.name === 'G722') return Buffer.from(this.g722enc.encode(frame)); // 320 Samples -> 160 Byte
+    const encode = this.codec.name === 'PCMU' ? linearToUlaw : linearToAlaw;
+    const b = Buffer.allocUnsafe(FRAME);
+    for (let i = 0; i < FRAME; i++) b[i] = encode(frame[i]);
+    return b;
   }
 
   // RFC 4733: ein Ereignis behält seine Zeitmarke, die Dauer wächst je Paket, am Ende E-Bit.
@@ -294,7 +312,10 @@ class RtpSession extends EventEmitter {
     this.remoteSsrc = buf.readUInt32BE(8);
     this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4), (buf[1] & 0x80) !== 0);
     let pcm;
-    if (this.codec.name === 'G722') {
+    if (this.codec.name === 'OPUS') {
+      const out = this.opusDec.decode(buf.subarray(offset, end)); // variable -> 960 Samples (48 kHz)
+      pcm = new Int16Array(out.buffer, out.byteOffset, out.length >> 1);
+    } else if (this.codec.name === 'G722') {
       pcm = this.g722dec.decode(buf.subarray(offset, end)); // 160 Byte -> 320 Samples
     } else {
       const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
@@ -410,6 +431,8 @@ class RtpSession extends EventEmitter {
     this.removeAllListeners();
     if (this.socket) this.socket.close();
     if (this.rtcp) this.rtcp.close();
+    if (this.opusEnc) this.opusEnc.delete(); // WASM-Speicher freigeben
+    if (this.opusDec) this.opusDec.delete();
   }
 }
 
