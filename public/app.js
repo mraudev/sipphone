@@ -1008,6 +1008,7 @@ $('settingsBtn').onclick = openSettings;
 $('reRegister').onclick = () => send({ type: 'register' });
 $('takeoverBtn').onclick = () => send({ type: 'register' });
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
+$('showOnCall').onchange = () => window.phone.setOptions({ showOnCall: $('showOnCall').checked });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -1050,7 +1051,9 @@ window.phone.onAudio((pcm) => {
 (async () => {
   try {
     audioCfg = await window.phone.getAudio();
-    $('lockUnregister').checked = (await window.phone.getOptions()).lockUnregister;
+    const options = await window.phone.getOptions();
+    $('lockUnregister').checked = options.lockUnregister;
+    $('showOnCall').checked = options.showOnCall;
     await refreshDevices();
     await initAudio();
     await loadRingtone();

@@ -1,12 +1,12 @@
 # SIP Phone
 
-Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als Ersatz für Linphone an einer Asterisk-Telefonanlage.
+Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
 
 ![Icon](assets/icon.png)
 
 ## Funktionen
 
-- **Mehrere SIP-Konten gleichzeitig** (z. B. Firmen-Telefonanlage und FRITZ!Box daheim), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
+- **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
 - **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU), Stummschalten im Gespräch
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel
@@ -15,9 +15,9 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron) – gedacht als 
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her
-- **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen
+- **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
-- **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim ersten Start werden Konto und Audiogeräte automatisch aus Linphone übernommen
+- **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen)
 
 ## Installation
 
@@ -53,7 +53,7 @@ $env:SIP_TRACE='1'; npm start
 | `src/phone.js` | Mehrere Konten: je Konto eine SIP-Verbindung, höchstens ein Gespräch gleichzeitig |
 | `src/sip.js` | SIP-Stack eines Kontos (Transaktionen, Registrierung, Anrufe, Digest-Auth) |
 | `src/rtp.js`, `src/sdp.js` | RTP mit G.711-Codec, SDP-Aushandlung |
-| `src/config.js`, `src/history.js` | Einstellungen (inkl. Linphone-Import) und Gesprächsverlauf |
+| `src/config.js`, `src/history.js` | Einstellungen und Gesprächsverlauf |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf 8-kHz-Telefonaudio um |
 
 ## Updates
@@ -76,16 +76,9 @@ Alles liegt unter `%APPDATA%\SIP Phone\`:
 - `contacts.json` – Telefonbuch
 - `ringtone.*` – Kopie des eigenen Klingeltons
 
-Gibt es noch keine `config.json`, sucht die App nach `%LOCALAPPDATA%\linphone\linphonerc` und übernimmt Konto und Audiogeräte. Ohne Linphone erscheint das Formular *SIP-Konto einrichten*.
+Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto einrichten*.
 
-> Linphone-Konfigurationen (`linphonerc`, `settings_lp`) und `config.json` enthalten Zugangsdaten und dürfen nicht ins Repository – sie stehen in `.gitignore`.
-
-## FRITZ!Box als (zusätzliches) Konto
-
-Die FRITZ!Box verwaltet die Rufnummern des Internetanschlusses (z. B. Vodafone DSL); SIP Phone meldet sich bei ihr als IP-Telefon an:
-
-1. FRITZ!Box: *Telefonie → Telefoniegeräte → Neues Gerät einrichten → Telefon (mit und ohne Anrufbeantworter) → LAN/WLAN (IP-Telefon)*, Benutzername und Kennwort vergeben, ausgehende Rufnummer und die Rufnummern wählen, auf die es klingeln soll.
-2. SIP Phone: *Einstellungen → + Konto hinzufügen*, Bezeichnung z. B. „Privat“, Benutzername und Kennwort aus der FRITZ!Box, Server `fritz.box`.
+> `config.json` enthält Zugangsdaten und darf nicht ins Repository – sie steht in `.gitignore`.
 
 ## Hinweise zur Telefonanlage (Asterisk)
 

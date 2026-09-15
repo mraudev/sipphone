@@ -335,6 +335,7 @@ dialog select {
 dialog label.check { display: flex; gap: 10px; align-items: flex-start; margin: 0; color: var(--text); font-size: 14px; cursor: pointer; }
 .check input { margin: 3px 0 0; accent-color: var(--accent); }
 .check small { display: block; margin-top: 2px; font-size: 12px; }
+.check + .check { margin-top: 12px; }
 .meter { margin-top: 8px; height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--green); transition: width 60ms linear; }
 .account { margin: 18px 0; padding: 12px 14px; border-radius: 12px; background: var(--card); display: grid; gap: 8px; }

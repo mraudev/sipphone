@@ -185,8 +185,11 @@ function attention(call) {
   if (!win) return;
   const ringing = !!call && call.state === 'incoming';
   if (ringing && !flashing) {
-    if (win.isMinimized()) win.restore();
-    win.showInactive();
+    // Option: sonst reicht die Windows-Meldung mit Annehmen/Ablehnen, das Fenster bleibt, wo es ist
+    if (cfg.showOnCall) {
+      if (win.isMinimized()) win.restore();
+      win.showInactive();
+    }
     win.flashFrame(true);
     showCallToast(call);
   } else if (!ringing && flashing) {
@@ -480,9 +483,11 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
-      if (typeof options.lockUnregister === 'boolean') cfg.lockUnregister = options.lockUnregister;
+      for (const key of ['lockUnregister', 'showOnCall']) {
+        if (typeof options[key] === 'boolean') cfg[key] = options[key];
+      }
       persist();
     });
     ipcMain.handle('phone:accounts', () => accountsView());
