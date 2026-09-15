@@ -74,6 +74,20 @@ function ulawToLinear(uval) {
 const ALAW_TABLE = Int16Array.from({ length: 256 }, (_, i) => alawToLinear(i));
 const ULAW_TABLE = Int16Array.from({ length: 256 }, (_, i) => ulawToLinear(i));
 
+function bindSocket(sock, port) {
+  return new Promise((resolve, reject) => {
+    const onError = (err) => {
+      sock.removeListener('error', onError);
+      reject(err);
+    };
+    sock.once('error', onError);
+    sock.bind(port, () => {
+      sock.removeListener('error', onError);
+      resolve();
+    });
+  });
+}
+
 class RtpSession extends EventEmitter {
   constructor() {
     super();
@@ -84,6 +98,10 @@ class RtpSession extends EventEmitter {
     this.micLen = 0;
     this.lastMicAt = -Infinity;
     this.stats = { voice: 0, silence: 0, maxGap: 0 };
+    // Empfangsstatistik (Gegenrichtung) und was die Anlage per RTCP über UNSEREN Strom zurückmeldet.
+    this.rx = { received: 0, lost: 0, expected: 0, transit: null, jitter: 0, maxJitter: 0 };
+    this.report = { count: 0, lost: 0, fraction: 0, maxJitterMs: 0 };
+    this.rtcp = null;
     this.marker = true;
     this.remote = null;
     this.codec = null;
@@ -94,16 +112,43 @@ class RtpSession extends EventEmitter {
     this.dtmfGap = 0;
   }
 
-  open() {
-    return new Promise((resolve, reject) => {
-      this.socket = dgram.createSocket('udp4');
+  // RTP auf einem geraden Port, RTCP auf Port+1 (so erwartet es Asterisk). Klappt Port+1 nicht, wird
+  // ohne RTCP weitergemacht – dann fehlt nur die Rückmeldung der Anlage, das Gespräch läuft normal.
+  async open() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const rtp = dgram.createSocket('udp4');
+      try {
+        await bindSocket(rtp, 0);
+      } catch {
+        continue;
+      }
+      const port = rtp.address().port;
+      if (port % 2 !== 0) {
+        rtp.close();
+        continue;
+      }
+      const rtcp = dgram.createSocket('udp4');
+      try {
+        await bindSocket(rtcp, port + 1);
+      } catch {
+        rtp.close();
+        rtcp.close();
+        continue;
+      }
+      this.socket = rtp;
+      this.port = port;
+      this.rtcp = rtcp;
       this.socket.on('message', (buf, rinfo) => this.onPacket(buf, rinfo));
-      this.socket.once('error', reject);
-      this.socket.bind(0, () => {
-        this.port = this.socket.address().port;
-        resolve();
-      });
-    });
+      this.rtcp.on('message', (buf, rinfo) => this.onRtcp(buf, rinfo));
+      this.socket.on('error', () => {});
+      this.rtcp.on('error', () => {});
+      return;
+    }
+    // Kein Paar frei bekommen: RTP allein, ohne RTCP-Auswertung.
+    this.socket = dgram.createSocket('udp4');
+    this.socket.on('message', (buf, rinfo) => this.onPacket(buf, rinfo));
+    await bindSocket(this.socket, 0);
+    this.port = this.socket.address().port;
   }
 
   setRemote(ip, port, codec) {
@@ -223,21 +268,86 @@ class RtpSession extends EventEmitter {
     if (end <= offset) return;
     // Symmetrisches RTP: an den Port zurücksenden, von dem die Gegenstelle sendet (hilft bei NAT).
     this.remote = { ip: rinfo.address, port: rinfo.port };
+    this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4));
     const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
     const pcm = new Int16Array(end - offset);
     for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
     this.emit('audio', pcm);
   }
 
-  close() {
-    if (this.timer && !this.closed) {
-      const s = this.stats;
-      console.log(`RTP gesendet: ${s.voice} Sprach-, ${s.silence} Stillepakete, längste Mikrofonpause ${Math.round(s.maxGap)} ms`);
+  // Empfangene Pakete zählen und den Jitter der Gegenrichtung schätzen (RFC 3550). Verluste ergeben sich
+  // aus Lücken in den Sequenznummern; verspätet/doppelt eintreffende Pakete werden dabei übergangen.
+  countReceived(seq, ts) {
+    this.rx.received++;
+    if (this.rx.received === 1) {
+      this.rx.expected = (seq + 1) & 0xffff;
+    } else {
+      const gap = (seq - this.rx.expected) & 0xffff;
+      if (gap < 0x8000) {
+        this.rx.lost += gap;
+        this.rx.expected = (seq + 1) & 0xffff;
+      }
     }
+    const arrival = performance.now() * 8; // 8 kHz: 8 Zeitmarken-Einheiten je Millisekunde
+    const transit = arrival - ts;
+    if (this.rx.transit !== null) {
+      const d = Math.abs(transit - this.rx.transit);
+      this.rx.jitter += (d - this.rx.jitter) / 16;
+      if (this.rx.jitter > this.rx.maxJitter) this.rx.maxJitter = this.rx.jitter;
+    }
+    this.rx.transit = transit;
+  }
+
+  // RTCP von der Anlage: aus den Empfangsberichten (SR/RR) lesen, was die Anlage über UNSEREN Strom
+  // meldet – verlorene Pakete und Jitter der Sendestrecke. Das zeigt, ob Aussetzer auf dem Weg entstehen.
+  onRtcp(buf, rinfo) {
+    if (!this.sdpIp || rinfo.address !== this.sdpIp) return;
+    let off = 0;
+    while (off + 4 <= buf.length) {
+      if (buf[off] >> 6 !== 2) break;
+      const pt = buf[off + 1];
+      const len = (buf.readUInt16BE(off + 2) + 1) * 4;
+      if (off + len > buf.length) break;
+      if (pt === 200 || pt === 201) {
+        const count = buf[off] & 0x1f;
+        let rb = off + (pt === 200 ? 28 : 8); // SR trägt vor den Blöcken 20 Byte Absender-Info
+        for (let i = 0; i < count && rb + 24 <= off + len; i++, rb += 24) {
+          if (buf.readUInt32BE(rb) !== this.ssrc) continue; // nur Berichte über unseren Strom
+          const fraction = buf[rb + 4] / 256;
+          const lost = (buf.readUInt32BE(rb + 4) << 8) >> 8; // 24-Bit-Wert (vorzeichenbehaftet)
+          const jitterMs = buf.readUInt32BE(rb + 12) / 8;
+          this.report.count++;
+          this.report.fraction = fraction;
+          this.report.lost = lost;
+          if (jitterMs > this.report.maxJitterMs) this.report.maxJitterMs = jitterMs;
+        }
+      }
+      off += len;
+    }
+  }
+
+  logStats() {
+    const s = this.stats;
+    const rx = this.rx;
+    const r = this.report;
+    const codec = this.codec ? this.codec.name : '?';
+    console.log(`RTP-Statistik (Codec ${codec}):`);
+    console.log(`  gesendet: ${s.voice} Sprach-, ${s.silence} Stillepakete, längste Mikrofonpause ${Math.round(s.maxGap)} ms`);
+    console.log(`  empfangen: ${rx.received} Pakete, ${rx.lost} Lücken (geschätzt), Jitter max ${(rx.maxJitter / 8).toFixed(1)} ms`);
+    if (r.count) {
+      console.log(`  Anlage meldet über unseren Sendestrom: ${r.count} Berichte, ${r.lost} Pakete verloren (zuletzt ${(r.fraction * 100).toFixed(1)} %), Jitter max ${r.maxJitterMs.toFixed(1)} ms`);
+    } else {
+      console.log('  Anlage meldet über unseren Sendestrom: keine RTCP-Berichte empfangen');
+    }
+  }
+
+  close() {
+    if (this.timer && !this.closed) this.logStats();
     this.closed = true;
     clearTimeout(this.timer);
     this.removeAllListeners();
     if (this.socket) this.socket.close();
+    if (this.rtcp) this.rtcp.close();
   }
 }
 

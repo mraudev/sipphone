@@ -29,8 +29,12 @@
     </div>
     <p id="regReason" class="reason" hidden></p>
     <div id="updateBar" class="update-bar" hidden>
-      <span>Update auf <b id="updateVersion"></b> ist bereit</span>
-      <button id="updateBtn" class="text-btn primary">Neu starten</button>
+      <div class="update-head">
+        <span>Update auf <b id="updateVersion"></b> ist bereit</span>
+        <button id="updateBtn" class="text-btn primary">Neu starten</button>
+      </div>
+      <button type="button" id="updateNotesToggle" class="update-notes-toggle" aria-expanded="false" hidden>Was ist neu?</button>
+      <pre id="updateNotes" class="update-notes" hidden></pre>
     </div>
 
     <nav id="tabs" class="tabs">
@@ -186,6 +190,7 @@
         <div id="accountList" class="account-list"></div>
         <button type="button" id="addAccount" class="text-btn">+ Konto hinzufügen</button>
         <div><span class="muted small">Version</span><span id="appVersion"></span></div>
+        <div><span class="muted small">Protokoll (Fehlersuche)</span><button type="button" id="showLog" class="text-btn">Anzeigen</button></div>
       </div>
       <div class="dialog-actions">
         <button type="button" id="reRegister" class="text-btn">Neu anmelden</button>

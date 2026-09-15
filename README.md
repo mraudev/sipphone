@@ -58,7 +58,7 @@ $env:SIP_TRACE='1'; npm start
 
 ## Updates
 
-Die installierte App prüft beim Start und alle 4 Stunden, ob es auf GitHub ein neueres [Release](https://github.com/mraudev/sipphone/releases) gibt, und lädt es im Hintergrund. Danach erscheint *Update bereit – Neu starten* (nie während eines Gesprächs); ohne Klick wird das Update beim nächsten Beenden installiert. Die Portable-exe aktualisiert sich nicht selbst.
+Die installierte App prüft beim Start und alle 4 Stunden, ob es auf GitHub ein neueres [Release](https://github.com/mraudev/sipphone/releases) gibt, und lädt es im Hintergrund. Danach erscheint *Update bereit – Neu starten* (nie während eines Gesprächs) samt aufklappbarer Beschreibung des Releases (*Was ist neu?*); ohne Klick wird das Update beim nächsten Beenden installiert. Die Portable-exe aktualisiert sich nicht selbst.
 
 Neue Version veröffentlichen:
 
@@ -75,6 +75,7 @@ Alles liegt unter `%APPDATA%\SIP Phone\`:
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)
 - `contacts.json` – Telefonbuch
 - `ringtone.*` – Kopie des eigenen Klingeltons
+- `sipphone.log` – Protokoll für die Fehlersuche (ohne Zugangsdaten und Gesprächsinhalte). Am Gesprächsende steht darin eine RTP-Statistik: gesendete Sprach-/Stillepakete, längste Mikrofonpause und – sofern die Anlage RTCP schickt – was sie über den eigenen Sendestrom meldet (Paketverlust, Jitter). Über *Einstellungen → Protokoll → Anzeigen* im Explorer zu öffnen.
 
 Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto einrichten*.
 

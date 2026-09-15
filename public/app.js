@@ -27,7 +27,7 @@ let ringtone = null; // { name, buffer } – eigener Klingelton, null = eingebau
 let accounts = []; // Kontodaten fürs Formular (ohne Zugangsdaten)
 let editingAccount = false;
 let editingAccountId = null;
-let updateVersion = null; // heruntergeladenes Update, wartet auf Neustart
+let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -107,8 +107,13 @@ function render() {
   renderStatus();
 
   const call = state.call;
-  $('updateBar').hidden = !updateVersion || !!call; // nie mitten im Gespräch
-  $('updateVersion').textContent = updateVersion || '';
+  $('updateBar').hidden = !update || !!call; // nie mitten im Gespräch
+  if (update) {
+    $('updateVersion').textContent = update.version;
+    const notes = (update.notes || '').trim();
+    $('updateNotesToggle').hidden = !notes;
+    $('updateNotes').textContent = notes;
+  }
   const setup = !call && (!accountConfigured() || editingAccount);
   $('accountView').hidden = !setup;
   $('tabs').hidden = !!call || setup;
@@ -978,6 +983,13 @@ $('updateBtn').onclick = async () => {
   const res = await window.phone.installUpdate();
   if (res && res.error) toast(res.error, true);
 };
+$('updateNotesToggle').onclick = () => {
+  const open = $('updateNotes').hidden;
+  $('updateNotes').hidden = !open;
+  $('updateNotesToggle').setAttribute('aria-expanded', String(open));
+  $('updateNotesToggle').textContent = open ? 'Weniger anzeigen' : 'Was ist neu?';
+};
+$('showLog').onclick = () => window.phone.openLog();
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
 $('contactSearch').oninput = renderContacts;
 $('addContact').onclick = () => openContactDialog();
@@ -1038,8 +1050,8 @@ window.phone.onContacts((list) => {
   contacts = list;
   renderContacts();
 });
-window.phone.onUpdate((version) => {
-  updateVersion = version;
+window.phone.onUpdate((info) => {
+  update = info;
   render();
 });
 window.phone.onAudio((pcm) => {
@@ -1062,7 +1074,7 @@ window.phone.onAudio((pcm) => {
   }
   state = await window.phone.getState();
   accounts = await window.phone.getAccounts();
-  updateVersion = await window.phone.getUpdate();
+  update = await window.phone.getUpdate();
   $('appVersion').textContent = await window.phone.getVersion();
   if (!accountConfigured()) showAccountForm();
   history = await window.phone.getHistory();

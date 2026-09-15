@@ -3,8 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { pathToFileURL } = require('url');
-const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog, powerMonitor } = require('electron');
+const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog, powerMonitor, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const logger = require('./logger');
 const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS } = require('./config');
 const { Phone } = require('./phone');
 const { CallHistory } = require('./history');
@@ -37,6 +38,8 @@ let stopped = false;
 let trayHintShown = false;
 let callToast = null;
 let updateReady = null; // Version eines heruntergeladenen Updates
+let updateNotes = ''; // Beschreibung des Updates (GitHub-Release-Text)
+let logFile = null;
 let screenLocked = false;
 
 const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
@@ -394,15 +397,36 @@ function setupUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('update-available', (info) => console.log(`Update ${info.version} verfügbar, lade herunter …`));
   autoUpdater.on('update-not-available', () => console.log('Kein Update verfügbar'));
-  autoUpdater.on('update-downloaded', (info) => {
+  autoUpdater.on('update-downloaded', async (info) => {
     updateReady = info.version;
+    updateNotes = await fetchReleaseNotes(info.version).catch(() => '');
     console.log(`Update ${info.version} bereit`);
-    send('phone:update', updateReady);
+    send('phone:update', { version: updateReady, notes: updateNotes });
   });
   autoUpdater.on('error', (err) => console.error('Update-Fehler:', err.message));
   const check = () => autoUpdater.checkForUpdates().catch(() => {}); // Fehler meldet das 'error'-Event
   check();
   setInterval(check, UPDATE_INTERVAL_MS);
+}
+
+// Beschreibung des Releases (der „Body“ auf der GitHub-Release-Seite) für die aufklappbaren Details.
+function fetchReleaseNotes(version) {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url: `https://api.github.com/repos/mraudev/sipphone/releases/tags/v${version}`, headers: { 'User-Agent': 'sipphone', Accept: 'application/vnd.github+json' } });
+    req.on('response', (res) => {
+      let body = '';
+      res.on('data', (c) => (body += c));
+      res.on('end', () => {
+        try {
+          resolve(String(JSON.parse(body).body || '').trim());
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+    req.on('error', reject);
+    req.end();
+  });
 }
 
 async function installUpdate() {
@@ -434,6 +458,8 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showWindow);
 
   app.whenReady().then(async () => {
+    logFile = logger.setup(app.getPath('userData'));
+    console.log(`SIP Phone ${app.getVersion()} gestartet`);
     nativeTheme.themeSource = 'dark';
     Menu.setApplicationMenu(null);
     protocol.handle('app', (req) => {
@@ -497,7 +523,8 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:chooseRingtone', () => chooseRingtone());
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
     ipcMain.handle('phone:version', () => app.getVersion());
-    ipcMain.handle('phone:getUpdate', () => updateReady);
+    ipcMain.handle('phone:openLog', () => shell.showItemInFolder(logFile));
+    ipcMain.handle('phone:getUpdate', () => (updateReady ? { version: updateReady, notes: updateNotes } : null));
     ipcMain.handle('phone:installUpdate', () => installUpdate());
     ipcMain.handle('phone:history', () => historyView());
     ipcMain.handle('phone:clearHistory', () => {

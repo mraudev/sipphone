@@ -86,12 +86,23 @@ body { overflow: hidden; }
 
 .update-bar {
   margin-top: 10px;
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  display: flex; flex-direction: column; gap: 6px;
   padding: 8px 8px 8px 14px; border-radius: 12px;
   background: rgba(91, 140, 255, 0.14); border: 1px solid rgba(91, 140, 255, 0.35);
   font-size: 13px;
 }
+.update-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .update-bar .text-btn { padding: 6px 12px; }
+.update-notes-toggle {
+  align-self: flex-start; padding: 0; border: 0; background: none;
+  color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline;
+}
+.update-notes {
+  margin: 0; max-height: 180px; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font: inherit; font-size: 12px; color: var(--text);
+  background: rgba(0, 0, 0, 0.22); border-radius: 8px; padding: 8px 10px;
+}
 
 @keyframes blink { 50% { opacity: 0.3; } }
 
