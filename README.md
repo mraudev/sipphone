@@ -8,7 +8,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 
 - **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
 - **Telefonieren** ein- und ausgehend, Audio mit G.711 (PCMA/PCMU) und optional G.722 (HD-Sprache, Breitband bis 7 kHz), Stummschalten im Gespräch
-- **Halten und Weiterleiten**: Gespräch halten (die Anlage spielt der Gegenstelle Wartemusik) und blind weiterleiten (an Nummer oder Kontakt, mit Vorschlägen)
+- **Halten und Weiterleiten**: Gespräch halten (die Anlage spielt der Gegenstelle Wartemusik), blind weiterleiten oder mit Rückfrage weiterleiten (erst mit dem Ziel sprechen, dann verbinden) – jeweils an Nummer oder Kontakt mit Vorschlägen
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar (falls sie die Stimme metallisch klingen lässt)
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
@@ -97,4 +97,4 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
 - G.722 (HD, standardmäßig an) und G.711 (PCMA/PCMU); kann die Gegenstelle kein G.722, wird automatisch auf G.711 zurückgefallen. HD ist in den Einstellungen abschaltbar
 - Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
-- Weiterleiten nur blind (ohne Rückfrage); kein zweites gleichzeitiges Gespräch (Rückfrage-Weiterleitung)
+- Ein reguläres Gespräch gleichzeitig (plus ein Rückfragegespräch beim Weiterleiten); kein Konferenzgespräch

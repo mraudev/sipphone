@@ -128,20 +128,28 @@ function render() {
   $('callBtn').disabled = !line || line.state !== 'registered';
 
   if (call) {
-    const user = call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
-    const name = call.contactName || call.remoteName || user;
+    const consult = call.consult; // Rückfragegespräch (Weiterleiten mit Rückfrage)
+    const disp = consult || call; // angezeigte Gegenstelle
+    const user = disp.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0];
+    const name = (consult ? consult.remoteName : call.contactName || call.remoteName) || user;
     $('callName').textContent = name;
-    $('callUri').textContent = call.remoteUri.replace(/^(sips?|tel):/i, '');
-    const lineText = multipleAccounts() && call.accountLabel ? `${call.direction === 'in' ? 'Anruf für' : 'über'} ${call.accountLabel}` : '';
+    $('callUri').textContent = disp.remoteUri.replace(/^(sips?|tel):/i, '');
+    const lineText = !consult && multipleAccounts() && call.accountLabel ? `${call.direction === 'in' ? 'Anruf für' : 'über'} ${call.accountLabel}` : '';
     $('callLine').textContent = lineText;
     $('callLine').hidden = !lineText;
     $('initials').textContent = initials(name);
-    $('avatar').classList.toggle('ringing', call.state === 'incoming' || call.state === 'ringing' || call.state === 'calling');
+    $('avatar').classList.toggle('ringing', ['incoming', 'ringing', 'calling'].includes(disp.state));
     const active = call.state === 'active';
     if (!active) transferOpen = false;
+    const heldName = consult ? call.contactName || call.remoteName || call.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0] : '';
+    $('consultHeld').hidden = !consult;
+    $('consultHeld').textContent = consult ? `Gehalten: ${heldName}` : '';
+    $('consultBar').hidden = !consult;
+    $('consultJoin').disabled = !(consult && consult.state === 'active');
     $('answerBtn').hidden = call.state !== 'incoming';
-    $('callControls').hidden = !active || transferOpen;
-    $('transferBar').hidden = !(active && transferOpen);
+    $('hangupBtn').hidden = !!consult;
+    $('callControls').hidden = !!consult || !active || transferOpen;
+    $('transferBar').hidden = !!consult || !(active && transferOpen);
     $('holdBtn').classList.toggle('active', !!call.held);
     $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
@@ -168,15 +176,18 @@ function initials(name) {
 function updateCallStatus() {
   const call = state.call;
   if (!call) return;
+  const consult = call.consult;
+  const c = consult || call;
   let text;
-  if (call.state === 'calling') text = 'Wählt …';
-  else if (call.state === 'ringing') text = 'Klingelt …';
-  else if (call.state === 'incoming') text = 'Eingehender Anruf';
+  if (c.state === 'calling') text = consult ? 'Rückfrage – wählt …' : 'Wählt …';
+  else if (c.state === 'ringing') text = consult ? 'Rückfrage – klingelt …' : 'Klingelt …';
+  else if (c.state === 'incoming') text = 'Eingehender Anruf';
   else {
-    const s = Math.max(0, Math.floor((Date.now() - call.startedAt) / 1000));
+    const s = Math.max(0, Math.floor((Date.now() - c.startedAt) / 1000));
     text = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-    if (call.held) text += '  ·  Gehalten';
-    if (call.codec) text += `  ·  ${call.codec}`;
+    if (consult) text = `Rückfrage · ${text}`;
+    if (!consult && call.held) text += '  ·  Gehalten';
+    if (!consult && call.codec) text += `  ·  ${call.codec}`;
     if (muted) text += '  ·  Stumm';
   }
   $('callStatus').textContent = text;
@@ -354,8 +365,11 @@ function closeTransfer() {
 }
 
 function renderTransferSuggest() {
+  // Auswahl füllt nur das Feld; danach entscheidet der Nutzer: direkt oder mit Rückfrage.
   renderSuggestBox($('transferInput'), $('transferSuggest'), true, (s) => {
-    doTransfer(s.target);
+    $('transferInput').value = s.number;
+    hideSuggestBox($('transferSuggest'));
+    $('transferInput').focus();
   });
 }
 
@@ -363,6 +377,13 @@ function doTransfer(target) {
   const value = (target || '').trim();
   if (!value) return;
   send({ type: 'transfer', target: value });
+  closeTransfer();
+}
+
+function doAttendedTransfer(target) {
+  const value = (target || '').trim();
+  if (!value) return;
+  send({ type: 'attendedTransfer', target: value });
   closeTransfer();
 }
 
@@ -931,13 +952,17 @@ function stopTone() {
 
 function updateAudio() {
   const call = state.call;
-  // Bei Halten kein Mikrofon (die Anlage spielt der Gegenstelle Wartemusik).
-  const media = call && !call.held && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
+  const consult = call && call.consult;
+  // Bei Rückfrage zählt das zweite Gespräch; bei Halten (ohne Rückfrage) kein Mikrofon (Wartemusik).
+  const media = consult
+    ? consult.state === 'active'
+    : call && !call.held && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
   if (media) startMic();
   else stopMic();
 
   if (call && call.state === 'incoming') playTone('ring');
-  else if (call && call.state === 'ringing' && !call.earlyMedia) playTone('ringback');
+  else if (consult && consult.state === 'ringing' && !consult.earlyMedia) playTone('ringback');
+  else if (!consult && call && call.state === 'ringing' && !call.earlyMedia) playTone('ringback');
   else stopTone();
 
   if (!call && audio) audio.node.port.postMessage('reset');
@@ -1112,6 +1137,9 @@ $('holdBtn').onclick = toggleHold;
 $('transferBtn').onclick = openTransfer;
 $('transferCancel').onclick = closeTransfer;
 $('transferGo').onclick = () => doTransfer($('transferInput').value);
+$('transferConsult').onclick = () => doAttendedTransfer($('transferInput').value);
+$('consultJoin').onclick = () => send({ type: 'completeTransfer' });
+$('consultBack').onclick = () => send({ type: 'cancelConsult' });
 $('transferInput').addEventListener('input', renderTransferSuggest);
 $('transferInput').addEventListener('blur', () => hideSuggestBox($('transferSuggest')));
 $('transferInput').addEventListener('keydown', (e) => {

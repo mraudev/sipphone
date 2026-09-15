@@ -119,6 +119,18 @@ class Phone extends EventEmitter {
     if (this.active) this.active.ua.transfer(target);
   }
 
+  attendedTransfer(target) {
+    if (this.active) this.active.ua.attendedTransfer(target);
+  }
+
+  completeTransfer() {
+    if (this.active) this.active.ua.completeTransfer();
+  }
+
+  cancelConsult() {
+    if (this.active) this.active.ua.cancelConsult();
+  }
+
   pushAudio(pcm) {
     if (this.active) this.active.ua.pushAudio(pcm);
   }

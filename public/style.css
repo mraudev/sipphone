@@ -320,6 +320,7 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 #callUri { margin: 0; font-size: 13px; }
 .call-line { margin: 6px 0 0; font-size: 13px; color: var(--accent); }
 .call-status { margin: 14px 0 40px; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--text); }
+.consult-held { margin: -32px 0 32px; font-size: 13px; }
 
 .call-actions { display: flex; gap: 32px; }
 .call-controls { display: flex; gap: 16px; justify-content: center; margin-bottom: 20px; }

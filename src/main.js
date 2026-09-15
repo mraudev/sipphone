@@ -447,6 +447,9 @@ async function runCommand(msg) {
     else if (msg.type === 'dtmf') phone.sendDtmf(String(msg.digit || ''));
     else if (msg.type === 'hold') phone.hold(!!msg.on);
     else if (msg.type === 'transfer') phone.transfer(String(msg.target || ''));
+    else if (msg.type === 'attendedTransfer') phone.attendedTransfer(String(msg.target || ''));
+    else if (msg.type === 'completeTransfer') phone.completeTransfer();
+    else if (msg.type === 'cancelConsult') phone.cancelConsult();
     else if (msg.type === 'register') await phone.register();
     return null;
   } catch (err) {

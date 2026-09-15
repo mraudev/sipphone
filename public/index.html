@@ -120,6 +120,7 @@
       <p id="callUri" class="muted"></p>
       <p id="callLine" class="call-line" hidden></p>
       <p id="callStatus" class="call-status"></p>
+      <p id="consultHeld" class="consult-held muted" hidden></p>
       <p id="dtmfDigits" class="dtmf-digits" hidden></p>
       <div id="callKeypad" class="keypad call-keypad" hidden></div>
       <div id="callControls" class="call-controls" hidden>
@@ -145,8 +146,17 @@
         </div>
         <div class="transfer-actions">
           <button type="button" id="transferCancel" class="text-btn">Abbrechen</button>
+          <button type="button" id="transferConsult" class="text-btn">Mit Rückfrage</button>
           <button type="button" id="transferGo" class="text-btn primary">Weiterleiten</button>
         </div>
+      </div>
+      <div id="consultBar" class="call-actions" hidden>
+        <button id="consultBack" class="round-btn secondary" title="Zurück (Rückfrage beenden)" aria-label="Zurück">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z"/></svg>
+        </button>
+        <button id="consultJoin" class="round-btn call" title="Verbinden" aria-label="Verbinden">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+        </button>
       </div>
       <div class="call-actions">
         <button id="answerBtn" class="round-btn call" title="Annehmen" aria-label="Annehmen" hidden>

@@ -180,6 +180,8 @@ class SipUA extends EventEmitter {
     this.stx = new Map(); // Server-Transaktionen (für Retransmits)
     this.reg = { state: 'idle', reason: '' };
     this.call = null;
+    this.consult = null; // zweites Gespräch bei Weiterleiten mit Rückfrage
+    this.transferring = false; // während des Verbindens keine automatische Rückkehr zum gehaltenen Gespräch
     this.regCallId = `${rand(12)}@sipphone`;
     this.regTag = rand(6);
     this.regCseq = 0;
@@ -232,6 +234,13 @@ class SipUA extends EventEmitter {
         earlyMedia: !!c.earlyMedia,
         held: !!c.held,
         codec: c.codec ? c.codec.name : null,
+        consult: this.consult && {
+          state: this.consult.state,
+          remoteUri: this.consult.remoteUri,
+          remoteName: this.consult.remoteName,
+          startedAt: this.consult.startedAt,
+          earlyMedia: !!this.consult.earlyMedia,
+        },
       },
     };
   }
@@ -542,7 +551,8 @@ class SipUA extends EventEmitter {
     return `sip:${t.replace(/[\s()/-]/g, '')}@${this.cfg.domain}`;
   }
 
-  newCall(direction, remoteUri, remoteName) {
+  // slot: 'call' (Hauptgespräch) oder 'consult' (Rückfragegespräch).
+  newCall(direction, remoteUri, remoteName, slot = 'call') {
     const call = {
       direction,
       state: direction === 'out' ? 'calling' : 'incoming',
@@ -556,10 +566,16 @@ class SipUA extends EventEmitter {
       sdpId: Date.now(),
       sdpVersion: 0,
     };
-    call.rtp.on('audio', (pcm) => this.emit('audio', pcm));
-    call.rtp.on('format', (fmt) => this.emit('format', fmt));
-    this.call = call;
+    // Nur das Gespräch mit der aktiven Sprachverbindung wird gehört/gesendet (das andere ist gehalten).
+    call.rtp.on('audio', (pcm) => call === this.mediaCall && this.emit('audio', pcm));
+    call.rtp.on('format', (fmt) => call === this.mediaCall && this.emit('format', fmt));
+    this[slot] = call;
     return call;
+  }
+
+  // Das Gespräch, dessen Sprachverbindung gerade aktiv ist: bei Rückfrage das zweite, sonst das Haupt.
+  get mediaCall() {
+    return this.consult && !this.consult.ended ? this.consult : this.call;
   }
 
   localSdp(call) {
@@ -629,7 +645,7 @@ class SipUA extends EventEmitter {
   }
 
   onInviteResponse(call, req, res, authed) {
-    const ended = call !== this.call;
+    const ended = !!call.ended;
     if (res.status < 200) {
       call.provisional = true;
       if (ended) {
@@ -776,31 +792,45 @@ class SipUA extends EventEmitter {
     call.okTimer = setTimeout(tick, interval);
   }
 
-  endCall(call, reason) {
+  // silent=true (Rückfragegespräch): kein Verlaufseintrag/Hinweis, nur Zustand aktualisieren.
+  endCall(call, reason, silent) {
     if (call.ended) return;
     call.ended = true;
     clearTimeout(call.okTimer);
     call.rtp.close();
-    if (this.call === call) this.call = null;
+    const wasConsult = this.consult === call;
+    if (this.consult === call) {
+      this.consult = null;
+    } else if (this.call === call) {
+      // Endet das Hauptgespräch während einer Rückfrage, wird die Rückfrage zum Hauptgespräch.
+      this.call = this.consult || null;
+      this.consult = null;
+      if (this.call) this.call.held = false;
+    }
     console.log(`Gespräch beendet: ${reason}`);
-    this.emit('ended', reason, {
-      direction: call.direction,
-      remoteUri: call.remoteUri,
-      remoteName: call.remoteName,
-      createdAt: call.createdAt,
-      startedAt: call.startedAt,
-      rejected: !!call.rejected,
-    });
+    if (!silent) {
+      this.emit('ended', reason, {
+        direction: call.direction,
+        remoteUri: call.remoteUri,
+        remoteName: call.remoteName,
+        createdAt: call.createdAt,
+        startedAt: call.startedAt,
+        rejected: !!call.rejected,
+      });
+    }
+    // Endet die Rückfrage (ohne dass gerade verbunden wird), zurück zum gehaltenen Hauptgespräch.
+    if (wasConsult && !this.transferring && this.call && this.call.held) this.hold(false);
     this.emitState();
   }
 
   pushAudio(pcm) {
-    if (this.call) this.call.rtp.pushMic(pcm);
+    const c = this.mediaCall;
+    if (c) c.rtp.pushMic(pcm);
   }
 
   // Tastentöne: RFC 4733 im RTP-Strom, wenn telephone-event ausgehandelt ist, sonst SIP INFO.
   sendDtmf(digit) {
-    const call = this.call;
+    const call = this.mediaCall;
     if (!call || call.state !== 'active' || !/^[0-9*#A-D]$/.test(digit)) return;
     if (call.dtmfPt !== undefined && call.dtmfPt !== null) {
       call.rtp.sendDtmf(digit, call.dtmfPt);
@@ -906,6 +936,64 @@ class SipUA extends EventEmitter {
     });
   }
 
+  // Weiterleiten mit Rückfrage: Hauptgespräch halten, ein zweites Gespräch (Rückfrage) zum Ziel aufbauen.
+  async attendedTransfer(target) {
+    const a = this.call;
+    if (!a || a.state !== 'active' || this.consult || !target.trim()) return;
+    if (!a.held) this.hold(true);
+    const uri = this.targetUri(target);
+    const b = this.newCall('out', uri, '', 'consult');
+    b.callId = `${rand(12)}@${this.localIp}`;
+    b.local = `${this.fromHeader()};tag=${rand(6)}`;
+    b.remote = `<${uri}>`;
+    b.remoteTarget = uri;
+    this.emitState();
+    await b.rtp.open();
+    if (b.ended) return;
+    this.sendInvite(b);
+  }
+
+  // Verbinden: die Gegenstelle des Hauptgesprächs mit der Rückfrage zusammenschalten (REFER mit Replaces).
+  completeTransfer() {
+    const a = this.call;
+    const b = this.consult;
+    if (!a || !b || b.state !== 'active') return;
+    const replaces = `${b.callId};to-tag=${parseAddr(b.remote).params.tag};from-tag=${parseAddr(b.local).params.tag}`;
+    const referTo = `<${b.remoteTarget}?Replaces=${encodeURIComponent(replaces)}>`;
+    const req = this.buildRequest('REFER', a.remoteTarget, {
+      callId: a.callId,
+      from: a.local,
+      to: a.remote,
+      cseq: ++a.cseq,
+      route: a.routeSet,
+      extra: [['Refer-To', referTo], ['Referred-By', `<${this.aor}>`]],
+    });
+    this.transferring = true;
+    this.sendRequest(req, (res) => {
+      if (res.status < 200) return;
+      if (res.status < 300) {
+        this.sendBye(b);
+        this.endCall(b, 'Verbunden', true);
+        this.sendBye(a);
+        this.endCall(a, 'Verbunden');
+        this.transferring = false;
+      } else {
+        this.transferring = false;
+        this.emit('info', `Verbinden abgelehnt (${res.status})`);
+      }
+    });
+  }
+
+  // Rückfrage abbrechen: zweites Gespräch beenden, zum gehaltenen Hauptgespräch zurück (in endCall).
+  cancelConsult() {
+    const b = this.consult;
+    if (!b) return;
+    if (b.state === 'active') this.sendBye(b);
+    else if (b.provisional) this.sendCancel(b);
+    else b.cancelPending = true;
+    this.endCall(b, 'Rückfrage beendet', true);
+  }
+
   // --- Eingehende Requests ---
 
   respond(req, rinfo, status, reason, { toTag, contact, body, contentType, extra = [] } = {}) {
@@ -934,7 +1022,10 @@ class SipUA extends EventEmitter {
   }
 
   findCall(req) {
-    return this.call && this.call.callId === header(req, 'call-id') ? this.call : null;
+    const id = header(req, 'call-id');
+    if (this.call && this.call.callId === id) return this.call;
+    if (this.consult && this.consult.callId === id) return this.consult;
+    return null;
   }
 
   onRequest(req, rinfo) {
