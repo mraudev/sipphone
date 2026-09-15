@@ -31,6 +31,7 @@ let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, 
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
+let devicePanelOpen = false; // Geräte-Umschaltung im Gespräch sichtbar
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -148,8 +149,11 @@ function render() {
     $('consultJoin').disabled = !(consult && consult.state === 'active');
     $('answerBtn').hidden = call.state !== 'incoming';
     $('hangupBtn').hidden = !!consult;
-    $('callControls').hidden = !!consult || !active || transferOpen;
+    if (!active || consult) devicePanelOpen = false;
+    $('callControls').hidden = !!consult || !active || transferOpen || devicePanelOpen;
     $('transferBar').hidden = !!consult || !(active && transferOpen);
+    $('devicePanel').hidden = !(active && devicePanelOpen && !consult);
+    $('deviceBtn').classList.toggle('active', devicePanelOpen);
     $('holdBtn').classList.toggle('active', !!call.held);
     $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
@@ -158,6 +162,7 @@ function render() {
     document.title = 'SIP Phone';
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
     transferOpen = false;
+    devicePanelOpen = false;
     if (dtmfOpen) setDtmfOpen(false);
     $('dtmfDigits').textContent = '';
     $('dtmfDigits').hidden = true;
@@ -351,6 +356,7 @@ function toggleHold() {
 function openTransfer() {
   if (!state.call || state.call.state !== 'active') return;
   if (dtmfOpen) setDtmfOpen(false);
+  devicePanelOpen = false;
   transferOpen = true;
   render();
   $('transferInput').value = '';
@@ -385,6 +391,46 @@ function doAttendedTransfer(target) {
   if (!value) return;
   send({ type: 'attendedTransfer', target: value });
   closeTransfer();
+}
+
+// --- Audiogerät während des Gesprächs wechseln (z. B. Headset -> Laptop-Lautsprecher fürs Freisprechen) ---
+
+function openDevicePanel() {
+  if (!state.call || state.call.state !== 'active') return;
+  if (dtmfOpen) setDtmfOpen(false);
+  transferOpen = false;
+  devicePanelOpen = true;
+  render();
+  fillCallDevices();
+}
+
+function closeDevicePanel() {
+  devicePanelOpen = false;
+  render();
+}
+
+async function fillCallDevices() {
+  await refreshDevices();
+  const fill = (select, kind, name) => {
+    select.innerHTML = '';
+    select.append(new Option('Systemstandard', ''));
+    for (const d of devices.filter((x) => x.kind === kind)) select.append(new Option(d.label, d.label));
+    const cur = findDevice(kind, name);
+    if (name && !cur) select.append(new Option(`${name} (nicht angeschlossen)`, name));
+    select.value = cur ? cur.label : name;
+  };
+  fill($('callMic'), 'audioinput', audioCfg.microphone);
+  fill($('callSpeaker'), 'audiooutput', audioCfg.speaker);
+}
+
+function onCallDeviceChange() {
+  audioCfg = { ...audioCfg, microphone: $('callMic').value, speaker: $('callSpeaker').value };
+  window.phone.setAudio(audioCfg);
+  applySinks(); // Ausgabe sofort umschalten
+  if (mic) { // Mikrofon mit neuem Gerät neu aufnehmen (Echo-/Rauschunterdrückung greift wie eingestellt)
+    stopMic();
+    updateAudio();
+  }
 }
 
 // --- Konten ---
@@ -1140,6 +1186,10 @@ $('transferGo').onclick = () => doTransfer($('transferInput').value);
 $('transferConsult').onclick = () => doAttendedTransfer($('transferInput').value);
 $('consultJoin').onclick = () => send({ type: 'completeTransfer' });
 $('consultBack').onclick = () => send({ type: 'cancelConsult' });
+$('deviceBtn').onclick = () => (devicePanelOpen ? closeDevicePanel() : openDevicePanel());
+$('deviceDone').onclick = closeDevicePanel;
+$('callMic').onchange = onCallDeviceChange;
+$('callSpeaker').onchange = onCallDeviceChange;
 $('transferInput').addEventListener('input', renderTransferSuggest);
 $('transferInput').addEventListener('blur', () => hideSuggestBox($('transferSuggest')));
 $('transferInput').addEventListener('keydown', (e) => {
