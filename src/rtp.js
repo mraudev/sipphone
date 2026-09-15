@@ -4,7 +4,9 @@ const crypto = require('crypto');
 const { EventEmitter } = require('events');
 
 const FRAME = 160; // 20 ms @ 8 kHz
-const MIC_BUFFER = FRAME * 10; // max. 200 ms Mikrofon-Puffer
+// So lange ohne Mikrofon-Block -> der 20-ms-Takt sendet Stille. Deutlich länger als übliche Ruckler
+// zwischen Fenster und Hauptprozess, sonst käme nach verspäteten Blöcken zusätzliche Verzögerung dazu.
+const MIC_STALE_MS = 200;
 
 // Tastentöne nach RFC 4733 (telephone-event)
 const DTMF_EVENTS = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, '*': 10, '#': 11, A: 12, B: 13, C: 14, D: 15 };
@@ -78,9 +80,10 @@ class RtpSession extends EventEmitter {
     this.ssrc = crypto.randomBytes(4).readUInt32BE(0);
     this.seq = crypto.randomBytes(2).readUInt16BE(0);
     this.ts = crypto.randomBytes(4).readUInt32BE(0);
-    this.mic = new Int16Array(MIC_BUFFER);
+    this.mic = new Int16Array(FRAME); // angefangener 20-ms-Block
     this.micLen = 0;
-    this.micReady = false;
+    this.lastMicAt = -Infinity;
+    this.stats = { voice: 0, silence: 0, maxGap: 0 };
     this.marker = true;
     this.remote = null;
     this.codec = null;
@@ -109,16 +112,24 @@ class RtpSession extends EventEmitter {
     this.remote = port && ip && ip !== '0.0.0.0' ? { ip, port } : null;
   }
 
-  // Sendetakt läuft auf dem Server (alle 20 ms), unabhängig davon, wie das Mikrofon liefert.
+  // Gesendet wird im Takt des Mikrofons: jeder volle 20-ms-Block geht sofort raus. So entstehen keine
+  // Lücken, wenn Blöcke verspätet oder gebündelt ankommen, und nichts driftet, weil Soundkarte und
+  // PC-Uhr nie exakt gleich schnell laufen. Liefert das Mikrofon nichts (noch nicht bereit, Fehler),
+  // hält ein 20-ms-Takt den Strom mit Stille am Laufen.
   start() {
     if (this.timer || this.closed) return;
     let next = performance.now();
     const tick = () => {
       const now = performance.now();
-      if (now - next > 200) next = now;
-      while (next <= now) {
-        this.sendFrame();
-        next += 20;
+      if (now - this.lastMicAt < MIC_STALE_MS) {
+        next = now + 20;
+      } else {
+        if (now - next > 200) next = now;
+        while (next <= now) {
+          this.sendFrame(new Int16Array(FRAME));
+          this.stats.silence++;
+          next += 20;
+        }
       }
       this.timer = setTimeout(tick, Math.max(1, next - performance.now()));
     };
@@ -126,28 +137,21 @@ class RtpSession extends EventEmitter {
   }
 
   pushMic(samples) {
-    if (samples.length > MIC_BUFFER) samples = samples.subarray(samples.length - MIC_BUFFER);
-    const overflow = this.micLen + samples.length - MIC_BUFFER;
-    if (overflow > 0) {
-      this.mic.copyWithin(0, overflow, this.micLen);
-      this.micLen -= overflow;
+    if (!this.timer) return; // vor Gesprächsbeginn nichts puffern (käme sonst als Verzögerung dazu)
+    const now = performance.now();
+    if (this.lastMicAt > -Infinity) this.stats.maxGap = Math.max(this.stats.maxGap, now - this.lastMicAt);
+    this.lastMicAt = now;
+    for (let offset = 0; offset < samples.length;) {
+      const n = Math.min(FRAME - this.micLen, samples.length - offset);
+      this.mic.set(samples.subarray(offset, offset + n), this.micLen);
+      this.micLen += n;
+      offset += n;
+      if (this.micLen === FRAME) {
+        this.sendFrame(this.mic);
+        this.stats.voice++;
+        this.micLen = 0;
+      }
     }
-    this.mic.set(samples, this.micLen);
-    this.micLen += samples.length;
-  }
-
-  takeFrame() {
-    const frame = new Int16Array(FRAME);
-    // Kleiner Vorlauf nach einem Leerlauf, damit Netzwerk-Jitter nicht ständig Lücken erzeugt.
-    if (!this.micReady && this.micLen >= FRAME * 2) this.micReady = true;
-    if (!this.micReady || this.micLen < FRAME) {
-      this.micReady = false;
-      return frame;
-    }
-    frame.set(this.mic.subarray(0, FRAME));
-    this.mic.copyWithin(0, FRAME, this.micLen);
-    this.micLen -= FRAME;
-    return frame;
   }
 
   sendDtmf(digit, pt) {
@@ -155,8 +159,7 @@ class RtpSession extends EventEmitter {
     if (event !== undefined) this.dtmfQueue.push({ event, pt });
   }
 
-  sendFrame() {
-    const frame = this.takeFrame();
+  sendFrame(frame) {
     if (this.dtmfGap > 0) this.dtmfGap--;
     else if (!this.dtmf && this.dtmfQueue.length) {
       this.dtmf = { ...this.dtmfQueue.shift(), ts: this.ts, duration: 0, ends: 0, first: true };
@@ -227,6 +230,10 @@ class RtpSession extends EventEmitter {
   }
 
   close() {
+    if (this.timer && !this.closed) {
+      const s = this.stats;
+      console.log(`RTP gesendet: ${s.voice} Sprach-, ${s.silence} Stillepakete, längste Mikrofonpause ${Math.round(s.maxGap)} ms`);
+    }
     this.closed = true;
     clearTimeout(this.timer);
     this.removeAllListeners();
