@@ -30,6 +30,7 @@ let editingAccountId = null;
 let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
+let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -136,14 +137,19 @@ function render() {
     $('callLine').hidden = !lineText;
     $('initials').textContent = initials(name);
     $('avatar').classList.toggle('ringing', call.state === 'incoming' || call.state === 'ringing' || call.state === 'calling');
+    const active = call.state === 'active';
+    if (!active) transferOpen = false;
     $('answerBtn').hidden = call.state !== 'incoming';
-    $('muteBtn').hidden = call.state !== 'active';
-    $('keypadBtn').hidden = call.state !== 'active';
+    $('callControls').hidden = !active || transferOpen;
+    $('transferBar').hidden = !(active && transferOpen);
+    $('holdBtn').classList.toggle('active', !!call.held);
+    $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
     document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'SIP Phone';
   } else {
     document.title = 'SIP Phone';
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
+    transferOpen = false;
     if (dtmfOpen) setDtmfOpen(false);
     $('dtmfDigits').textContent = '';
     $('dtmfDigits').hidden = true;
@@ -169,6 +175,7 @@ function updateCallStatus() {
   else {
     const s = Math.max(0, Math.floor((Date.now() - call.startedAt) / 1000));
     text = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    if (call.held) text += '  ·  Gehalten';
     if (call.codec) text += `  ·  ${call.codec}`;
     if (muted) text += '  ·  Stumm';
   }
@@ -282,16 +289,16 @@ function numberSuggestions(input) {
   return out.slice(0, 6);
 }
 
-function hideSuggest() {
-  $('numberSuggest').hidden = true;
-  $('numberSuggest').replaceChildren();
+function hideSuggestBox(box) {
+  box.hidden = true;
+  box.replaceChildren();
 }
 
-function renderSuggest() {
-  const box = $('numberSuggest');
-  const list = state.call ? [] : numberSuggestions($('number').value);
+// Vorschläge in eine beliebige Liste rendern (Wählfeld und Weiterleiten-Feld teilen sich die Logik).
+function renderSuggestBox(inputEl, box, allow, onPick) {
+  const list = allow ? numberSuggestions(inputEl.value) : [];
   if (!list.length) {
-    hideSuggest();
+    hideSuggestBox(box);
     return;
   }
   box.replaceChildren(...list.map((s) => {
@@ -301,17 +308,62 @@ function renderSuggest() {
     const text = el('div', 's-text');
     text.append(el('span', 's-name', s.name), el('span', 's-sub', `${s.sub} · ${s.number}`));
     item.append(text, svgIcon(ICON_PATHS.phone));
-    // Klick würde sonst das Feld unscharf schalten, bevor er ankommt -> auf mousedown wählen.
+    // Klick würde sonst das Feld unscharf schalten, bevor er ankommt -> auf mousedown auslösen.
     item.onmousedown = (e) => {
       e.preventDefault();
-      const known = (state.accounts || []).some((a) => a.id === s.accountId);
-      $('number').value = s.number;
-      hideSuggest();
-      send({ type: 'dial', target: s.target, accountId: known ? s.accountId : selectedLine() });
+      onPick(s);
     };
     return item;
   }));
   box.hidden = false;
+}
+
+function hideSuggest() {
+  hideSuggestBox($('numberSuggest'));
+}
+
+function renderSuggest() {
+  renderSuggestBox($('number'), $('numberSuggest'), !state.call, (s) => {
+    const known = (state.accounts || []).some((a) => a.id === s.accountId);
+    $('number').value = s.number;
+    hideSuggest();
+    send({ type: 'dial', target: s.target, accountId: known ? s.accountId : selectedLine() });
+  });
+}
+
+// --- Halten und Weiterleiten ---
+
+function toggleHold() {
+  if (state.call && state.call.state === 'active') send({ type: 'hold', on: !state.call.held });
+}
+
+function openTransfer() {
+  if (!state.call || state.call.state !== 'active') return;
+  if (dtmfOpen) setDtmfOpen(false);
+  transferOpen = true;
+  render();
+  $('transferInput').value = '';
+  hideSuggestBox($('transferSuggest'));
+  $('transferInput').focus();
+}
+
+function closeTransfer() {
+  transferOpen = false;
+  hideSuggestBox($('transferSuggest'));
+  render();
+}
+
+function renderTransferSuggest() {
+  renderSuggestBox($('transferInput'), $('transferSuggest'), true, (s) => {
+    doTransfer(s.target);
+  });
+}
+
+function doTransfer(target) {
+  const value = (target || '').trim();
+  if (!value) return;
+  send({ type: 'transfer', target: value });
+  closeTransfer();
 }
 
 // --- Konten ---
@@ -879,7 +931,8 @@ function stopTone() {
 
 function updateAudio() {
   const call = state.call;
-  const media = call && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
+  // Bei Halten kein Mikrofon (die Anlage spielt der Gegenstelle Wartemusik).
+  const media = call && !call.held && (call.state === 'active' || (call.state === 'ringing' && call.earlyMedia));
   if (media) startMic();
   else stopMic();
 
@@ -1055,6 +1108,16 @@ $('backspace').onclick = () => {
 $('answerBtn').onclick = () => send({ type: 'answer' });
 $('hangupBtn').onclick = () => send({ type: 'hangup' });
 $('muteBtn').onclick = () => setMuted(!muted);
+$('holdBtn').onclick = toggleHold;
+$('transferBtn').onclick = openTransfer;
+$('transferCancel').onclick = closeTransfer;
+$('transferGo').onclick = () => doTransfer($('transferInput').value);
+$('transferInput').addEventListener('input', renderTransferSuggest);
+$('transferInput').addEventListener('blur', () => hideSuggestBox($('transferSuggest')));
+$('transferInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doTransfer($('transferInput').value);
+  else if (e.key === 'Escape') closeTransfer();
+});
 $('updateBtn').onclick = async () => {
   const res = await window.phone.installUpdate();
   if (res && res.error) toast(res.error, true);
@@ -1125,6 +1188,7 @@ window.phone.onState((s) => {
   render();
 });
 window.phone.onEnded((reason) => toast(reason));
+window.phone.onInfo((text) => toast(text));
 window.phone.onHistory((entries) => {
   history = entries;
   if (activeTab === 'history' && document.hasFocus()) markHistorySeen();

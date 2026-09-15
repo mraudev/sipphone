@@ -445,6 +445,8 @@ async function runCommand(msg) {
     else if (msg.type === 'answer') phone.answer();
     else if (msg.type === 'hangup') phone.hangup();
     else if (msg.type === 'dtmf') phone.sendDtmf(String(msg.digit || ''));
+    else if (msg.type === 'hold') phone.hold(!!msg.on);
+    else if (msg.type === 'transfer') phone.transfer(String(msg.target || ''));
     else if (msg.type === 'register') await phone.register();
     return null;
   } catch (err) {
@@ -502,6 +504,7 @@ if (!app.requestSingleInstanceLock()) {
       phone.unlock();
     });
     phone.on('audio', (pcm) => send('phone:audio', pcm));
+    phone.on('info', (text) => send('phone:info', text));
 
     ipcMain.handle('phone:state', () => withContactName(phone.snapshot()));
     ipcMain.handle('phone:command', (_e, msg) => runCommand(msg));

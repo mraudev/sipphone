@@ -19,6 +19,7 @@ class Phone extends EventEmitter {
     ua.on('state', () => this.emitState());
     ua.on('audio', (pcm) => this.emit('audio', pcm));
     ua.on('format', (fmt) => this.emit('format', fmt));
+    ua.on('info', (text) => this.emit('info', text));
     ua.on('ended', (reason, call) => this.emit('ended', reason, { ...call, accountId: account.id, accountLabel: account.label }));
     const line = { account, ua };
     this.lines.push(line);
@@ -108,6 +109,14 @@ class Phone extends EventEmitter {
 
   sendDtmf(digit) {
     if (this.active) this.active.ua.sendDtmf(digit);
+  }
+
+  hold(on) {
+    if (this.active) this.active.ua.hold(on);
+  }
+
+  transfer(target) {
+    if (this.active) this.active.ua.transfer(target);
   }
 
   pushAudio(pcm) {

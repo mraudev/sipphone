@@ -230,6 +230,7 @@ class SipUA extends EventEmitter {
         remoteName: c.remoteName,
         startedAt: c.startedAt,
         earlyMedia: !!c.earlyMedia,
+        held: !!c.held,
         codec: c.codec ? c.codec.name : null,
       },
     };
@@ -815,6 +816,94 @@ class SipUA extends EventEmitter {
       contentType: 'application/dtmf-relay',
     });
     this.sendRequest(req, () => {});
+  }
+
+  // --- Halten und Weiterleiten ---
+
+  // Halten (on=true) / Zurückholen (on=false): Re-INVITE mit sendonly bzw. sendrecv. Bei sendonly spielt
+  // die Anlage der Gegenstelle Wartemusik; das Mikrofon wird währenddessen im Fenster gestoppt.
+  hold(on) {
+    const call = this.call;
+    if (!call || call.state !== 'active' || call.held === on) return;
+    call.held = on;
+    call.localDirection = on ? 'sendonly' : 'sendrecv';
+    this.emitState();
+    this.sendReInvite(call, on);
+  }
+
+  sendReInvite(call, desiredHeld, auth) {
+    const req = this.buildRequest('INVITE', call.remoteTarget, {
+      callId: call.callId,
+      from: call.local,
+      to: call.remote,
+      cseq: ++call.cseq,
+      contact: true,
+      route: call.routeSet,
+      extra: auth ? [auth] : [],
+      body: this.localSdp(call),
+      contentType: 'application/sdp',
+    });
+    this.sendRequest(req, (res) => {
+      if (res.status < 200 || call !== this.call) return;
+      if ((res.status === 401 || res.status === 407) && !auth) {
+        const a = this.authorize(req, res);
+        if (a) return this.sendReInvite(call, desiredHeld, a);
+      }
+      if (res.status < 300) {
+        this.ackInDialog(call, res);
+        if (res.body) {
+          this.applyRemoteSdp(call, res.body);
+          call.held = desiredHeld; // applyRemoteSdp setzt localDirection; der Haltezustand bleibt unsere Vorgabe
+        }
+      } else {
+        // Fehlgeschlagen -> Haltezustand zurücknehmen
+        call.held = !desiredHeld;
+        call.localDirection = call.held ? 'sendonly' : 'sendrecv';
+      }
+      this.emitState();
+    });
+  }
+
+  ackInDialog(call, res) {
+    const ack = this.buildRequest('ACK', call.remoteTarget, {
+      callId: call.callId,
+      from: call.local,
+      to: header(res, 'to') || call.remote,
+      cseq: call.cseq,
+      route: call.routeSet,
+    });
+    const data = serialize(`ACK ${ack.uri} SIP/2.0`, ack.headers);
+    this.lastAck = { callId: call.callId, data };
+    this.transmit(data);
+  }
+
+  // Blind weiterleiten: REFER an die Anlage, die die Gegenstelle mit dem Ziel verbindet. Nach der
+  // Annahme (202) legen wir unsere Seite auf; die Anlage stellt das Gespräch eigenständig her.
+  transfer(target, auth) {
+    const call = this.call;
+    if (!call || call.state !== 'active' || !target.trim()) return;
+    const uri = this.targetUri(target);
+    const req = this.buildRequest('REFER', call.remoteTarget, {
+      callId: call.callId,
+      from: call.local,
+      to: call.remote,
+      cseq: ++call.cseq,
+      route: call.routeSet,
+      extra: [['Refer-To', `<${uri}>`], ['Referred-By', `<${this.aor}>`], ...(auth ? [auth] : [])],
+    });
+    this.sendRequest(req, (res) => {
+      if (res.status < 200 || call !== this.call) return;
+      if ((res.status === 401 || res.status === 407) && !auth) {
+        const a = this.authorize(req, res);
+        if (a) return this.transfer(target, a);
+      }
+      if (res.status < 300) {
+        this.sendBye(call);
+        this.endCall(call, 'Weitergeleitet');
+      } else {
+        this.emit('info', `Weiterleiten abgelehnt (${res.status})`);
+      }
+    });
   }
 
   // --- Eingehende Requests ---

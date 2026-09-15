@@ -220,6 +220,8 @@ body { overflow: hidden; }
 .round-btn.secondary.active { background: var(--text); color: var(--bg); }
 .round-btn .icon-mic-off, .round-btn.active .icon-mic { display: none; }
 .round-btn.active .icon-mic-off { display: block; }
+.round-btn .icon-unhold, .round-btn.active .icon-hold { display: none; }
+.round-btn.active .icon-unhold { display: block; }
 
 /* Telefonbuch */
 #contacts { align-items: stretch; overflow: hidden; }
@@ -320,6 +322,19 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 .call-status { margin: 14px 0 40px; font-size: 16px; font-variant-numeric: tabular-nums; color: var(--text); }
 
 .call-actions { display: flex; gap: 32px; }
+.call-controls { display: flex; gap: 16px; justify-content: center; margin-bottom: 20px; }
+.call-controls .round-btn { width: 56px; height: 56px; font-size: 22px; }
+
+/* Weiterleiten-Leiste im Gespräch */
+.transfer-bar { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+.transfer-bar .number-row { position: relative; width: 100%; }
+.transfer-bar input {
+  width: 100%; padding: 11px 12px;
+  border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg); color: var(--text); font: inherit;
+}
+.transfer-bar input:focus { outline: none; border-color: var(--accent); }
+.transfer-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* Tastenfeld im Gespräch */
 .dtmf-digits { margin: -24px 0 16px; min-height: 28px; font-size: 22px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
