@@ -326,14 +326,12 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 .call-controls { display: flex; gap: 12px; justify-content: center; margin-bottom: 20px; }
 .call-controls .round-btn { width: 52px; height: 52px; font-size: 21px; }
 
-/* Audiogerät im Gespräch wechseln */
-.device-panel { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
-.dp-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-.device-panel select {
-  width: 100%; padding: 9px 10px;
-  border: 1px solid var(--line); border-radius: 10px;
-  background: var(--bg); color: var(--text); font: inherit;
-}
+/* Lautstärke im Gespräch (dauerhaft eingeblendet) */
+.volume-row { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 280px; margin: -20px auto 26px; }
+.volume-row svg { color: var(--muted); font-size: 18px; flex: none; }
+.volume-row input[type="range"] { flex: 1; height: 4px; accent-color: var(--accent); cursor: pointer; }
+dialog select { margin-bottom: 0; }
+.field small.small { display: block; margin-top: 4px; }
 
 /* Weiterleiten-Leiste im Gespräch */
 .transfer-bar { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }

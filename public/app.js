@@ -31,7 +31,7 @@ let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, 
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
-let devicePanelOpen = false; // Geräte-Umschaltung im Gespräch sichtbar
+let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -149,11 +149,11 @@ function render() {
     $('consultJoin').disabled = !(consult && consult.state === 'active');
     $('answerBtn').hidden = call.state !== 'incoming';
     $('hangupBtn').hidden = !!consult;
-    if (!active || consult) devicePanelOpen = false;
-    $('callControls').hidden = !!consult || !active || transferOpen || devicePanelOpen;
+    $('callControls').hidden = !!consult || !active || transferOpen;
     $('transferBar').hidden = !!consult || !(active && transferOpen);
-    $('devicePanel').hidden = !(active && devicePanelOpen && !consult);
-    $('deviceBtn').classList.toggle('active', devicePanelOpen);
+    $('speakerBtn').classList.toggle('active', speakerMode);
+    $('speakerBtn').title = speakerMode ? 'Freisprechen aus (zurück aufs Headset)' : 'Freisprechen (Lautsprecher-Profil)';
+    $('volumeRow').hidden = !!consult; // Lautstärke im Gespräch immer sichtbar (außer während der Rückfrage)
     $('holdBtn').classList.toggle('active', !!call.held);
     $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
@@ -162,7 +162,10 @@ function render() {
     document.title = 'SIP Phone';
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
     transferOpen = false;
-    devicePanelOpen = false;
+    if (speakerMode) { // nächstes Gespräch beginnt wieder auf dem normalen Gerät
+      speakerMode = false;
+      applySinks();
+    }
     if (dtmfOpen) setDtmfOpen(false);
     $('dtmfDigits').textContent = '';
     $('dtmfDigits').hidden = true;
@@ -356,7 +359,6 @@ function toggleHold() {
 function openTransfer() {
   if (!state.call || state.call.state !== 'active') return;
   if (dtmfOpen) setDtmfOpen(false);
-  devicePanelOpen = false;
   transferOpen = true;
   render();
   $('transferInput').value = '';
@@ -393,44 +395,25 @@ function doAttendedTransfer(target) {
   closeTransfer();
 }
 
-// --- Audiogerät während des Gesprächs wechseln (z. B. Headset -> Laptop-Lautsprecher fürs Freisprechen) ---
+// --- Freisprechen (Profil mit eigenem Ein-/Ausgabegerät) und Lautstärke im Gespräch ---
 
-function openDevicePanel() {
-  if (!state.call || state.call.state !== 'active') return;
-  if (dtmfOpen) setDtmfOpen(false);
-  transferOpen = false;
-  devicePanelOpen = true;
-  render();
-  fillCallDevices();
-}
-
-function closeDevicePanel() {
-  devicePanelOpen = false;
-  render();
-}
-
-async function fillCallDevices() {
-  await refreshDevices();
-  const fill = (select, kind, name) => {
-    select.innerHTML = '';
-    select.append(new Option('Systemstandard', ''));
-    for (const d of devices.filter((x) => x.kind === kind)) select.append(new Option(d.label, d.label));
-    const cur = findDevice(kind, name);
-    if (name && !cur) select.append(new Option(`${name} (nicht angeschlossen)`, name));
-    select.value = cur ? cur.label : name;
-  };
-  fill($('callMic'), 'audioinput', audioCfg.microphone);
-  fill($('callSpeaker'), 'audiooutput', audioCfg.speaker);
-}
-
-function onCallDeviceChange() {
-  audioCfg = { ...audioCfg, microphone: $('callMic').value, speaker: $('callSpeaker').value };
-  window.phone.setAudio(audioCfg);
-  applySinks(); // Ausgabe sofort umschalten
-  if (mic) { // Mikrofon mit neuem Gerät neu aufnehmen (Echo-/Rauschunterdrückung greift wie eingestellt)
+// Ein Tipp: auf das Freisprech-Profil umstellen und zurück. Ausgabe sofort, Mikrofon neu aufnehmen.
+function toggleSpeaker() {
+  if (!state.call) return;
+  speakerMode = !speakerMode;
+  applySinks();
+  if (mic) {
     stopMic();
     updateAudio();
   }
+  render();
+}
+
+function setVolume(v) {
+  const value = Math.max(0, Math.min(1.5, v));
+  if (audio) audio.gain.gain.value = value;
+  audioCfg = { ...audioCfg, volume: value };
+  window.phone.setAudio({ volume: value });
 }
 
 // --- Konten ---
@@ -856,9 +839,11 @@ async function initAudio() {
   const ctx = new AudioContext({ latencyHint: 'interactive', sampleRate: 48000 });
   await ctx.audioWorklet.addModule('audio-worklet.js');
   const node = new AudioWorkletNode(ctx, 'phone', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2] });
-  node.connect(ctx.destination);
+  const gain = ctx.createGain(); // Hörlautstärke des Gesprächs
+  gain.gain.value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
+  node.connect(gain).connect(ctx.destination);
   node.port.onmessage = (e) => window.phone.sendAudio(new Int16Array(e.data));
-  audio = { ctx, node, ringCtx: new AudioContext() };
+  audio = { ctx, node, gain, ringCtx: new AudioContext() };
   await applySinks();
   $('audioGate').hidden = ctx.state === 'running';
 }
@@ -876,9 +861,17 @@ async function unlockAudio() {
   updateAudio();
 }
 
+// Aktive Geräte: im Freisprech-Modus das Profil (leer = Systemstandard), sonst die normale Auswahl.
+function activeMic() {
+  return speakerMode ? audioCfg.spkMicrophone : audioCfg.microphone;
+}
+function activeSpeaker() {
+  return speakerMode ? audioCfg.spkSpeaker : audioCfg.speaker;
+}
+
 async function applySinks() {
   if (!audio) return;
-  const sinks = [[audio.ctx, audioCfg.speaker], [audio.ringCtx, audioCfg.ringer]];
+  const sinks = [[audio.ctx, activeSpeaker()], [audio.ringCtx, audioCfg.ringer]];
   for (const [ctx, name] of sinks) {
     const id = deviceId('audiooutput', name);
     if (!ctx.setSinkId) continue;
@@ -895,7 +888,7 @@ async function startMic() {
   mic = 'pending';
   try {
     audio.node.port.postMessage({ type: 'config', rate: callRate }); // Mikrofon in der Codec-Rate aufnehmen
-    const id = deviceId('audioinput', audioCfg.microphone);
+    const id = deviceId('audioinput', activeMic());
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: id ? { exact: id } : undefined,
@@ -1047,12 +1040,21 @@ async function openSettings() {
   fill($('micSelect'), 'audioinput', audioCfg.microphone);
   fill($('speakerSelect'), 'audiooutput', audioCfg.speaker);
   fill($('ringerSelect'), 'audiooutput', audioCfg.ringer);
+  fill($('spkMicSelect'), 'audioinput', audioCfg.spkMicrophone);
+  fill($('spkSpeakerSelect'), 'audiooutput', audioCfg.spkSpeaker);
   $('settings').showModal();
   startMeter();
 }
 
 function onDeviceChange() {
-  audioCfg = { microphone: $('micSelect').value, speaker: $('speakerSelect').value, ringer: $('ringerSelect').value };
+  audioCfg = {
+    ...audioCfg,
+    microphone: $('micSelect').value,
+    speaker: $('speakerSelect').value,
+    ringer: $('ringerSelect').value,
+    spkMicrophone: $('spkMicSelect').value,
+    spkSpeaker: $('spkSpeakerSelect').value,
+  };
   window.phone.setAudio(audioCfg);
   applySinks();
   startMeter();
@@ -1187,10 +1189,8 @@ $('transferGo').onclick = () => doTransfer($('transferInput').value);
 $('transferConsult').onclick = () => doAttendedTransfer($('transferInput').value);
 $('consultJoin').onclick = () => send({ type: 'completeTransfer' });
 $('consultBack').onclick = () => send({ type: 'cancelConsult' });
-$('deviceBtn').onclick = () => (devicePanelOpen ? closeDevicePanel() : openDevicePanel());
-$('deviceDone').onclick = closeDevicePanel;
-$('callMic').onchange = onCallDeviceChange;
-$('callSpeaker').onchange = onCallDeviceChange;
+$('speakerBtn').onclick = toggleSpeaker;
+$('volume').oninput = () => setVolume(Number($('volume').value));
 $('transferInput').addEventListener('input', renderTransferSuggest);
 $('transferInput').addEventListener('blur', () => hideSuggestBox($('transferSuggest')));
 $('transferInput').addEventListener('keydown', (e) => {
@@ -1249,7 +1249,7 @@ $('micProcessing').onchange = () => {
 };
 $('hdVoice').onchange = () => window.phone.setOptions({ hdVoice: $('hdVoice').checked });
 $('gateBtn').onclick = unlockAudio;
-for (const id of ['micSelect', 'speakerSelect', 'ringerSelect']) $(id).onchange = onDeviceChange;
+for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
 $('testRinger').onclick = () => testTone('ring');
 $('ringtoneChoose').onclick = chooseRingtone;
@@ -1295,6 +1295,7 @@ window.phone.onAudioFormat((fmt) => {
 (async () => {
   try {
     audioCfg = await window.phone.getAudio();
+    $('volume').value = typeof audioCfg.volume === 'number' ? audioCfg.volume : 1;
     const options = await window.phone.getOptions();
     $('lockUnregister').checked = options.lockUnregister;
     $('showOnCall').checked = options.showOnCall;

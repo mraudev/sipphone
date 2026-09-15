@@ -10,7 +10,8 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Telefonieren** ein- und ausgehend, Audio wahlweise mit Opus (HD, Fullband, robust gegen Paketverluste), G.722 (HD, Breitband bis 7 kHz) oder G.711 (PCMA/PCMU) – der beste von der Anlage unterstützte Codec wird automatisch gewählt; Stummschalten im Gespräch
 - **Halten und Weiterleiten**: Gespräch halten (die Anlage spielt der Gegenstelle Wartemusik), blind weiterleiten oder mit Rückfrage weiterleiten (erst mit dem Ziel sprechen, dann verbinden) – jeweils an Nummer oder Kontakt mit Vorschlägen
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
-- **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; Mikrofon und Lautsprecher lassen sich auch **während eines Gesprächs** wechseln (z. B. vom Headset auf Laptop-Lautsprecher zum Freisprechen), und die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
+- **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
+- **Freisprech-Profil** mit eigenem Mikrofon und Lautsprecher: im Gespräch per Knopf umschalten (z. B. vom Headset auf Laptop-Lautsprecher, wenn jemand dazukommt); dazu ein dauerhaft eingeblendeter Lautstärkeregler
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an

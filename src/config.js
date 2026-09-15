@@ -31,8 +31,8 @@ const ACCOUNT_KEYS = [...Object.keys(ACCOUNT_DEFAULTS), 'passwordEnc', 'ha1Enc',
 
 const DEFAULTS = {
   accounts: [],
-  // Gerätenamen wie Windows sie anzeigt; leer = Systemstandard
-  audio: { microphone: '', speaker: '', ringer: '' },
+  // Gerätenamen wie Windows sie anzeigt; leer = Systemstandard. spk* = Freisprech-Profil, volume = Hörlautstärke.
+  audio: { microphone: '', speaker: '', ringer: '', spkMicrophone: '', spkSpeaker: '', volume: 1 },
   ringtone: null, // { file, name } – eigener Klingelton im App-Ordner, null = Standard
   lockUnregister: true, // solange der PC gesperrt ist, bei allen Konten abmelden
   showOnCall: true, // bei eingehendem Anruf das Fenster in den Vordergrund holen (sonst nur Windows-Meldung)

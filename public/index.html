@@ -122,6 +122,11 @@
       <p id="callStatus" class="call-status"></p>
       <p id="consultHeld" class="consult-held muted" hidden></p>
       <p id="dtmfDigits" class="dtmf-digits" hidden></p>
+      <div id="volumeRow" class="volume-row" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/></svg>
+        <input id="volume" type="range" min="0" max="1.5" step="0.05" value="1" aria-label="Lautstärke">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2a7 7 0 0 1 0 13.6v2A9 9 0 0 0 14 3.2z"/></svg>
+      </div>
       <div id="callKeypad" class="keypad call-keypad" hidden></div>
       <div id="callControls" class="call-controls" hidden>
         <button id="keypadBtn" class="round-btn secondary" title="Tastenfeld" aria-label="Tastenfeld" aria-pressed="false">
@@ -134,8 +139,8 @@
         <button id="transferBtn" class="round-btn secondary" title="Weiterleiten" aria-label="Weiterleiten">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 7V4l6 5-6 5v-3H4V7z"/></svg>
         </button>
-        <button id="deviceBtn" class="round-btn secondary" title="Audiogerät wechseln" aria-label="Audiogerät wechseln" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1a9 9 0 0 0-9 9v7a3 3 0 0 0 3 3h2v-8H5v-2a7 7 0 0 1 14 0v2h-3v8h2a3 3 0 0 0 3-3v-7a9 9 0 0 0-9-9z"/></svg>
+        <button id="speakerBtn" class="round-btn secondary" title="Freisprechen (Lautsprecher-Profil)" aria-label="Freisprechen" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2a7 7 0 0 1 0 13.6v2A9 9 0 0 0 14 3.2z"/></svg>
         </button>
         <button id="muteBtn" class="round-btn secondary" title="Stummschalten" aria-label="Stummschalten" aria-pressed="false">
           <svg class="icon-mic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1a7 7 0 0 0 6-6.9z"/></svg>
@@ -152,11 +157,6 @@
           <button type="button" id="transferConsult" class="text-btn">Mit Rückfrage</button>
           <button type="button" id="transferGo" class="text-btn primary">Weiterleiten</button>
         </div>
-      </div>
-      <div id="devicePanel" class="device-panel" hidden>
-        <label class="dp-field">Mikrofon<select id="callMic"></select></label>
-        <label class="dp-field">Gespräch (Lautsprecher / Headset)<select id="callSpeaker"></select></label>
-        <div class="transfer-actions"><button type="button" id="deviceDone" class="text-btn primary">Fertig</button></div>
       </div>
       <div id="consultBar" class="call-actions" hidden>
         <button id="consultBack" class="round-btn secondary" title="Zurück (Rückfrage beenden)" aria-label="Zurück">
@@ -214,6 +214,15 @@
           <button type="button" id="ringtoneChoose" class="text-btn">Datei wählen …</button>
           <button type="button" id="ringtoneReset" class="text-btn" hidden>Standard</button>
         </div>
+      </div>
+      <div class="field">
+        <label for="spkMicSelect">Freisprech-Profil – Mikrofon</label>
+        <select id="spkMicSelect"></select>
+      </div>
+      <div class="field">
+        <label for="spkSpeakerSelect">Freisprech-Profil – Lautsprecher</label>
+        <select id="spkSpeakerSelect"></select>
+        <small class="muted small">Im Gespräch per Lautsprecher-Knopf umschaltbar. Leer = Systemstandard.</small>
       </div>
       <label class="check">
         <input type="checkbox" id="showOnCall">
