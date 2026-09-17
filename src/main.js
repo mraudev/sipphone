@@ -33,6 +33,7 @@ let cfg = null;
 let phone = null; // alle Konten (src/phone.js)
 let history = null;
 let contacts = null;
+const presence = {}; // Kurzwahl-Status je Nebenstelle (BLF): 'idle' | 'ringing' | 'busy' | 'unknown'
 let flashing = false;
 let quitting = false;
 let stopped = false;
@@ -543,6 +544,10 @@ if (!app.requestSingleInstanceLock()) {
     });
     phone.on('audio', (pcm) => send('phone:audio', pcm));
     phone.on('info', (text) => send('phone:info', text));
+    phone.on('presence', ({ ext, state }) => {
+      presence[ext] = state;
+      send('phone:presence', { ext, state });
+    });
 
     ipcMain.handle('phone:state', () => withContactName(phone.snapshot()));
     ipcMain.handle('phone:command', (_e, msg) => runCommand(msg));
@@ -597,10 +602,21 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:importOutlook', () => importOutlook());
     ipcMain.handle('phone:importCsv', () => importCsv());
     ipcMain.handle('phone:exportCsv', () => exportCsv());
+    ipcMain.handle('phone:favorites', () => ({ list: cfg.favorites, presence }));
+    ipcMain.handle('phone:saveFavorites', (_e, list) => {
+      cfg.favorites = (Array.isArray(list) ? list : [])
+        .map((f) => ({ name: String(f.name || '').trim(), number: String(f.number || '').trim() }))
+        .filter((f) => f.number);
+      persist();
+      for (const ext of Object.keys(presence)) if (!cfg.favorites.some((f) => f.number === ext)) delete presence[ext];
+      phone.setFavorites(cfg.favorites.map((f) => f.number));
+      return { list: cfg.favorites };
+    });
 
     createTray();
     createWindow();
     await phone.start();
+    phone.setFavorites(cfg.favorites.map((f) => f.number));
     setupUpdater();
   });
 

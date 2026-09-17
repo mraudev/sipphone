@@ -32,6 +32,9 @@ let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus conf
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
+let favorites = []; // Kurzwahl: [{ name, number }]
+let presence = {}; // Kurzwahl-Status je Nummer (BLF): 'idle' | 'ringing' | 'busy' | 'unknown'
+let editingFavorite = null; // Nummer des gerade bearbeiteten Favoriten, null = neu
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -124,6 +127,7 @@ function render() {
   $('dialer').hidden = !!call || setup || activeTab !== 'dialer';
   $('history').hidden = !!call || setup || activeTab !== 'history';
   $('contacts').hidden = !!call || setup || activeTab !== 'contacts';
+  $('speeddial').hidden = !!call || setup || activeTab !== 'speeddial';
   $('callView').hidden = !call;
   const line = (state.accounts || []).find((a) => a.id === selectedLine());
   $('callBtn').disabled = !line || line.state !== 'registered';
@@ -759,6 +763,74 @@ function renderContacts() {
     : 'Noch keine Kontakte. Mit „Outlook“ importieren oder mit + anlegen.';
 }
 
+// --- Kurzwahl (Besetztlampenfeld) ---
+
+const PRESENCE_LABELS = { idle: 'frei', ringing: 'klingelt', busy: 'besetzt', unknown: 'kein Status' };
+
+function renderFavorites() {
+  const list = $('favoriteList');
+  list.replaceChildren(...favorites.map((f) => {
+    const state = presence[f.number] || 'unknown';
+    const li = el('li', 'favorite');
+    li.dataset.state = state;
+    const dot = el('span', 'fav-dot');
+    dot.title = PRESENCE_LABELS[state];
+    const who = el('div', 'fav-who');
+    who.title = `${f.number} anrufen`;
+    who.append(el('b', '', f.name || f.number), el('small', '', `${f.name ? f.number + ' · ' : ''}${PRESENCE_LABELS[state]}`));
+    who.onclick = () => send({ type: 'dial', target: f.number, accountId: selectedLine() });
+    const edit = el('button', 'icon-btn subtle');
+    edit.title = 'Bearbeiten';
+    edit.append(svgIcon(ICON_PATHS.edit));
+    edit.onclick = () => openFavoriteDialog(f);
+    const call = el('button', 'icon-btn fav-call');
+    call.title = 'Anrufen';
+    call.append(svgIcon(ICON_PATHS.phone));
+    call.onclick = () => send({ type: 'dial', target: f.number, accountId: selectedLine() });
+    li.append(dot, who, edit, call);
+    return li;
+  }));
+  $('favoritesEmpty').hidden = favorites.length > 0;
+}
+
+function openFavoriteDialog(fav = null) {
+  const form = $('favForm');
+  editingFavorite = fav ? fav.number : null;
+  form.elements.namedItem('name').value = fav ? fav.name || '' : '';
+  form.elements.namedItem('number').value = fav ? fav.number : '';
+  $('favTitle').textContent = fav ? 'Kurzwahl bearbeiten' : 'Neue Kurzwahl';
+  $('favDelete').hidden = !fav;
+  $('favError').hidden = true;
+  $('favDialog').showModal();
+}
+
+async function saveFavorite(e) {
+  e.preventDefault();
+  const form = $('favForm');
+  const name = form.elements.namedItem('name').value.trim();
+  const number = form.elements.namedItem('number').value.trim();
+  if (!number) return;
+  const next = favorites.filter((f) => f.number !== editingFavorite);
+  if (next.some((f) => f.number === number)) {
+    $('favError').textContent = 'Diese Nummer ist schon in der Kurzwahl.';
+    $('favError').hidden = false;
+    return;
+  }
+  next.push({ name, number });
+  const res = await window.phone.saveFavorites(next);
+  favorites = res.list;
+  renderFavorites();
+  $('favDialog').close();
+}
+
+async function deleteFavorite() {
+  if (!editingFavorite) return;
+  const res = await window.phone.saveFavorites(favorites.filter((f) => f.number !== editingFavorite));
+  favorites = res.list;
+  renderFavorites();
+  $('favDialog').close();
+}
+
 function addNumberRow(label = NUMBER_LABELS[0], number = '') {
   const row = el('div', 'number-edit');
   const select = document.createElement('select');
@@ -1295,6 +1367,10 @@ $('reconnectBtn').onclick = () => {
 };
 $('reRegister').onclick = () => send({ type: 'register' });
 $('takeoverBtn').onclick = () => send({ type: 'register' });
+$('addFavorite').onclick = () => openFavoriteDialog();
+$('favForm').onsubmit = saveFavorite;
+$('favCancel').onclick = () => $('favDialog').close();
+$('favDelete').onclick = deleteFavorite;
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });
 $('showOnCall').onchange = () => window.phone.setOptions({ showOnCall: $('showOnCall').checked });
 $('micProcessing').onchange = () => {
@@ -1337,6 +1413,10 @@ window.phone.onContacts((list) => {
   contacts = list;
   renderContacts();
 });
+window.phone.onPresence(({ ext, state: st }) => {
+  presence[ext] = st;
+  renderFavorites();
+});
 window.phone.onUpdate((info) => {
   update = info;
   render();
@@ -1377,5 +1457,9 @@ window.phone.onAudioFormat((fmt) => {
   renderHistory();
   contacts = await window.phone.getContacts();
   renderContacts();
+  const fav = await window.phone.getFavorites();
+  favorites = fav.list;
+  presence = fav.presence || {};
+  renderFavorites();
   render();
 })();

@@ -10,6 +10,7 @@ const T1 = 500;
 const T2 = 4000;
 const TX_TIMEOUT = 64 * T1;
 const KEEPALIVE_MS = 25000;
+const SUB_EXPIRES = 3600; // Laufzeit eines BLF-Abonnements (SUBSCRIBE), rechtzeitig erneuert
 const USER_AGENT = 'sipphone/0.1';
 const ALLOW = 'INVITE, ACK, CANCEL, BYE, OPTIONS, NOTIFY, UPDATE';
 const TRACE = process.env.SIP_TRACE === '1';
@@ -169,6 +170,16 @@ const FAILURE_TEXT = {
 
 // --- User Agent ---
 
+// Presence einer Nebenstelle aus einem dialog-info+xml-NOTIFY (RFC 4235):
+// 'busy' (im Gespräch), 'ringing' (klingelt/wählt), sonst 'idle' (frei).
+function parseDialogInfo(xml) {
+  if (!xml) return 'idle';
+  const states = [...xml.matchAll(/<state[^>]*>\s*([a-zA-Z]+)\s*<\/state>/g)].map((m) => m[1].toLowerCase());
+  if (states.includes('confirmed')) return 'busy';
+  if (states.some((s) => ['early', 'proceeding', 'trying'].includes(s))) return 'ringing';
+  return 'idle';
+}
+
 class SipUA extends EventEmitter {
   // options.isBusy: Rückfrage, ob gerade ein anderes Konto telefoniert (dann gibt es "besetzt").
   constructor(cfg, options = {}) {
@@ -191,6 +202,8 @@ class SipUA extends EventEmitter {
     this.bindingCheck = false; // true, wenn der Server die aktuelle Anmeldung samt Kennung zurückmeldet
     this.standbyReason = null; // 'locked' | 'elsewhere' – Anmeldung ruht
     this.regEpoch = 0; // zählt Anmeldeversuche; eine verspätete Abmeldung von davor verfällt
+    this.watch = []; // Nebenstellen, deren Status per BLF beobachtet wird
+    this.subs = new Map(); // ext -> { target, callId, tag, cseq, state, timer }
   }
 
   get aor() {
@@ -213,6 +226,7 @@ class SipUA extends EventEmitter {
 
   async stop() {
     if (this.call) this.hangup();
+    this.stopWatch();
     clearInterval(this.keepalive);
     clearTimeout(this.regTimer);
     await Promise.race([this.unregister(), new Promise((r) => setTimeout(r, 2000))]);
@@ -453,6 +467,7 @@ class SipUA extends EventEmitter {
         this.bindingCheck = this.isOwnBinding(res);
         this.setReg('registered');
         this.scheduleRegister(Math.max(10, this.grantedExpires(res, expires) * 0.9), true);
+        if (this.watch.length && !this.subs.size) this.startWatch();
       }
     } else {
       const reason = res.status === 401 || res.status === 403 ? `${res.status} Zugangsdaten abgelehnt` : `${res.status} ${res.reason}`;
@@ -511,6 +526,7 @@ class SipUA extends EventEmitter {
   // Anmeldung ruhen lassen, bis resume(): 'locked' = PC gesperrt ('elsewhere' setzt register() selbst).
   async standby(reason) {
     this.standbyReason = reason;
+    this.stopWatch();
     clearTimeout(this.regTimer);
     await Promise.race([this.unregister(), new Promise((r) => setTimeout(r, 2000))]);
     if (this.standbyReason === reason) this.setReg(reason);
@@ -540,6 +556,95 @@ class SipUA extends EventEmitter {
     const contact = (res.headers.contact || []).find((c) => c.includes(own));
     const fromContact = contact && parseAddr(contact).params.expires;
     return Number(fromContact || header(res, 'expires') || requested);
+  }
+
+  // --- Besetztlampenfeld (BLF): Status der Kurzwahl-Nebenstellen per SUBSCRIBE/NOTIFY ---
+
+  // Beobachtete Nebenstellen setzen: neue abonnieren, entfallene abbestellen.
+  setWatch(exts) {
+    const next = [...new Set(exts.filter(Boolean))];
+    this.watch = next;
+    for (const ext of [...this.subs.keys()]) if (!next.includes(ext)) this.unsubscribe(ext);
+    if (this.reg.state === 'registered') for (const ext of next) if (!this.subs.has(ext)) this.subscribe(ext);
+  }
+
+  // Nach erfolgreicher Anmeldung alle Abonnements (neu) aufbauen.
+  startWatch() {
+    for (const ext of this.watch) this.subscribe(ext);
+  }
+
+  stopWatch() {
+    for (const sub of this.subs.values()) clearTimeout(sub.timer);
+    for (const ext of this.subs.keys()) this.emit('presence', { ext, state: 'unknown' });
+    this.subs.clear();
+  }
+
+  subscribe(ext, expires = SUB_EXPIRES) {
+    const target = this.targetUri(ext);
+    let sub = this.subs.get(ext);
+    if (!sub) {
+      sub = { ext, target, callId: `${rand(12)}@sipphone`, tag: rand(6), cseq: 0, state: 'unknown' };
+      this.subs.set(ext, sub);
+      this.emit('presence', { ext, state: 'unknown' });
+    }
+    const send = (auth) => {
+      const req = this.buildRequest('SUBSCRIBE', target, {
+        callId: sub.callId,
+        from: `${this.fromHeader()};tag=${sub.tag}`,
+        to: `<${target}>`,
+        cseq: ++sub.cseq,
+        contact: true,
+        extra: [['Event', 'dialog'], ['Accept', 'application/dialog-info+xml'], ['Expires', String(expires)], ...(auth ? [auth] : [])],
+      });
+      this.sendRequest(req, (res) => {
+        if (res.status < 200) return;
+        if ((res.status === 401 || res.status === 407) && !auth) {
+          const a = this.authorize(req, res);
+          if (a) return send(a);
+        }
+        // Bei Ablehnung (Anlage ohne BLF/Hint für diese Nst.) bleibt der Status grau.
+        if (res.status >= 300 && this.subs.has(ext)) this.emit('presence', { ext, state: 'unknown' });
+      });
+    };
+    send();
+    clearTimeout(sub.timer);
+    if (expires) sub.timer = setTimeout(() => this.subs.has(ext) && this.subscribe(ext), Math.max(30, expires * 0.9) * 1000);
+  }
+
+  unsubscribe(ext) {
+    const sub = this.subs.get(ext);
+    if (!sub) return;
+    clearTimeout(sub.timer);
+    this.subs.delete(ext);
+    this.emit('presence', { ext, state: 'unknown' });
+    if (this.reg.state !== 'registered') return;
+    const req = this.buildRequest('SUBSCRIBE', sub.target, {
+      callId: sub.callId, from: `${this.fromHeader()};tag=${sub.tag}`, to: `<${sub.target}>`,
+      cseq: ++sub.cseq, contact: true, extra: [['Event', 'dialog'], ['Expires', '0']],
+    });
+    this.sendRequest(req, () => {});
+  }
+
+  onNotify(req, rinfo) {
+    this.respond(req, rinfo, 200, 'OK');
+    const event = (header(req, 'event') || '').toLowerCase();
+    if (!event.startsWith('dialog')) return; // andere NOTIFYs (z. B. REFER) ignorieren
+    const id = header(req, 'call-id');
+    const sub = [...this.subs.values()].find((s) => s.callId === id);
+    if (!sub) return;
+    const ss = (header(req, 'subscription-state') || '').toLowerCase();
+    if (ss.startsWith('terminated')) {
+      this.emit('presence', { ext: sub.ext, state: 'unknown' });
+      // Nicht endgültige Absage -> nach kurzer Pause neu abonnieren
+      if (!/reason=(rejected|noresource)/.test(ss) && this.subs.has(sub.ext)) {
+        clearTimeout(sub.timer);
+        sub.timer = setTimeout(() => this.subs.has(sub.ext) && this.subscribe(sub.ext), 5000);
+      }
+      return;
+    }
+    const state = parseDialogInfo(req.body);
+    sub.state = state;
+    this.emit('presence', { ext: sub.ext, state });
   }
 
   // --- Anrufe ---
@@ -1063,7 +1168,7 @@ class SipUA extends EventEmitter {
         this.respond(req, rinfo, 200, 'OK', { extra: [['Allow', ALLOW], ['Accept', 'application/sdp']] });
         break;
       case 'NOTIFY':
-        this.respond(req, rinfo, 200, 'OK');
+        this.onNotify(req, rinfo);
         break;
       default:
         this.respond(req, rinfo, 501, 'Not Implemented', { extra: [['Allow', ALLOW]] });

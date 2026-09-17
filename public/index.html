@@ -46,6 +46,7 @@
       <button class="tab active" data-tab="dialer">Tastatur</button>
       <button class="tab" data-tab="history">Verlauf<span id="missedBadge" class="badge" hidden></span></button>
       <button class="tab" data-tab="contacts">Kontakte</button>
+      <button class="tab" data-tab="speeddial">Kurzwahl</button>
     </nav>
 
     <section id="dialer" class="view">
@@ -92,6 +93,17 @@
         <button class="icon-btn subtle" data-dir="1" title="Nächste Seite" aria-label="Nächste Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
       </div>
       <p id="contactsEmpty" class="muted empty"></p>
+    </section>
+
+    <section id="speeddial" class="view" hidden>
+      <div class="contacts-bar">
+        <span class="speeddial-title">Kurzwahl</span>
+        <button id="addFavorite" class="icon-btn" title="Kurzwahl hinzufügen" aria-label="Kurzwahl hinzufügen">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
+      </div>
+      <ul id="favoriteList" class="favorite-list"></ul>
+      <p id="favoritesEmpty" class="muted empty">Noch keine Kurzwahl. Mit + eine Nebenstelle oder Nummer anlegen; der Punkt zeigt den Status (frei/klingelt/besetzt), sofern die Anlage ihn liefert.</p>
     </section>
 
     <section id="accountView" class="view" hidden>
@@ -301,6 +313,21 @@
         <button type="button" id="contactDelete" class="text-btn danger">Löschen</button>
         <span class="spacer"></span>
         <button type="button" id="contactCancel" class="text-btn">Abbrechen</button>
+        <button type="submit" class="text-btn primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="favDialog">
+    <form id="favForm" class="account-form" autocomplete="off">
+      <h2 id="favTitle">Kurzwahl</h2>
+      <label>Name<input name="name" placeholder="z. B. Empfang"></label>
+      <label>Nummer / Nebenstelle *<input name="number" inputmode="tel" required></label>
+      <p id="favError" class="reason" hidden></p>
+      <div class="dialog-actions">
+        <button type="button" id="favDelete" class="text-btn danger">Löschen</button>
+        <span class="spacer"></span>
+        <button type="button" id="favCancel" class="text-btn">Abbrechen</button>
         <button type="submit" class="text-btn primary">Speichern</button>
       </div>
     </form>

@@ -13,6 +13,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
 - **Freisprech-Profil** mit eigenem Mikrofon und Lautsprecher: im Gespräch per Knopf umschalten (z. B. vom Headset auf Laptop-Lautsprecher, wenn jemand dazukommt); dazu ein dauerhaft eingeblendeter Lautstärkeregler
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
+- **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage)
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf; unbekannte Anrufer lassen sich mit einem Klick als Kontakt ins Telefonbuch übernehmen
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com) sowie Export des gesamten Telefonbuchs als CSV (für Excel oder zur Sicherung). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
@@ -95,6 +96,10 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
   - PJSIP: `send_pai=yes` (oder `send_rpid=yes`)
   - FreePBX: bei der Nebenstelle *Send RPID* → *Send P-Asserted-Identity header*
 - **Eine Nebenstelle auf mehreren PCs (Büro/Homeoffice):** chan_sip merkt sich pro Nebenstelle nur ein angemeldetes Gerät, Anrufe gehen an das zuletzt angemeldete. SIP Phone fragt deshalb vor jeder Erneuerung ab, wer gerade angemeldet ist, und verdrängt ein anderes Gerät nicht („An anderem Gerät“ → *Übernehmen*). Beim Beenden oder Sperren meldet es nur die eigene Anmeldung ab – `Expires: 0` würde bei chan_sip auch die des anderen Geräts löschen.
+- **Besetztlampenfeld (Kurzwahl-Status):** SIP Phone abonniert für jede Kurzwahl den Leitungsstatus der Nebenstelle (SUBSCRIBE mit `Event: dialog`, `dialog-info+xml`). Das zeigt nur dann *frei/klingelt/besetzt*, wenn die Anlage es liefert:
+  - chan_sip: `allowsubscribe=yes` (global oder beim Peer) und für die beobachteten Nebenstellen **Hints** im Wählplan, z. B. `exten => 797,hint,SIP/797` im passenden `subscribecontext`
+  - PJSIP/FreePBX: BLF/Hints entsprechend aktiviert
+  - Ohne Hints bleibt der Punkt grau; Wählen per Klick funktioniert trotzdem
 - **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden – oder die Nummer steht im Telefonbuch, dessen Name dann Vorrang hat.
 
 ## Einschränkungen

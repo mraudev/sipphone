@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.17.0
+- **Kurzwahl mit Besetztlampenfeld (BLF):** neuer Reiter „Kurzwahl" mit häufigen Nebenstellen/Nummern zum Wählen per Klick. Ein Statuspunkt zeigt *frei/klingelt/besetzt* (über SUBSCRIBE/NOTIFY `dialog-info`), sofern die Anlage den Status liefert (Hints/`allowsubscribe`).
+
 ## 1.16.0
 - **„Neu verbinden"-Knopf** oben rechts (Aktualisieren-Symbol): baut die SIP-Registrierung jederzeit von Hand neu auf.
 

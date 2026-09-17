@@ -20,6 +20,7 @@ class Phone extends EventEmitter {
     ua.on('audio', (pcm) => this.emit('audio', pcm));
     ua.on('format', (fmt) => this.emit('format', fmt));
     ua.on('info', (text) => this.emit('info', text));
+    ua.on('presence', ({ ext, state }) => this.emit('presence', { ext, state }));
     ua.on('ended', (reason, call) => this.emit('ended', reason, { ...call, accountId: account.id, accountLabel: account.label }));
     const line = { account, ua };
     this.lines.push(line);
@@ -79,6 +80,11 @@ class Phone extends EventEmitter {
 
   unlock() {
     for (const l of this.lines) if (l.ua.standbyReason === 'locked') l.ua.resume();
+  }
+
+  // Kurzwahl-Status (BLF): über das erste Konto beobachten – die Nebenstellen liegen auf derselben Anlage.
+  setFavorites(numbers) {
+    if (this.lines.length) this.lines[0].ua.setWatch(numbers);
   }
 
   // HD-Sprache (G.722) für alle Konten an/aus; wirkt beim nächsten Gespräch.

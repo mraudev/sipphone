@@ -39,6 +39,7 @@ const DEFAULTS = {
   micProcessing: true, // Rausch-/Echounterdrückung und Pegelautomatik von Windows/Chromium fürs Mikrofon
   hdVoice: true, // G.722 (Breitband) bevorzugt anbieten; fällt automatisch auf G.711 zurück
   theme: 'system', // Darstellung: 'system' | 'light' | 'dark'
+  favorites: [], // Kurzwahl: [{ name, number }] – Status per Besetztlampenfeld (BLF), sofern die Anlage es liefert
 };
 
 // Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.
@@ -56,6 +57,9 @@ function normalizeConfig(raw) {
     id: a.id || `konto-${i + 1}`,
     label: a.label || a.domain || `Konto ${i + 1}`,
   }));
+  cfg.favorites = Array.isArray(raw.favorites)
+    ? raw.favorites.map((f) => ({ name: String(f.name || '').trim(), number: String(f.number || '').trim() })).filter((f) => f.number)
+    : [];
   return cfg;
 }
 
