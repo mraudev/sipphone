@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('phone', {
   deleteContact: (id) => ipcRenderer.invoke('phone:deleteContact', id),
   importOutlook: () => ipcRenderer.invoke('phone:importOutlook'),
   importCsv: () => ipcRenderer.invoke('phone:importCsv'),
+  exportCsv: () => ipcRenderer.invoke('phone:exportCsv'),
   onContacts: (cb) => ipcRenderer.on('phone:contactsChanged', (_e, list) => cb(list)),
   getHistory: () => ipcRenderer.invoke('phone:history'),
   clearHistory: () => ipcRenderer.invoke('phone:clearHistory'),

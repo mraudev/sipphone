@@ -64,7 +64,7 @@ function parseCsv(text, sep) {
 }
 
 function readContactsCsv(file) {
-  const text = decode(fs.readFileSync(file));
+  const text = decode(fs.readFileSync(file)).replace(/^﻿/, ''); // BOM (Excel/UTF-8) verwerfen
   const nl = text.search(/\r?\n/);
   const head = nl < 0 ? text : text.slice(0, nl);
   const sep = [',', ';', '\t'].reduce((best, s) => (head.split(s).length > head.split(best).length ? s : best), ',');

@@ -12,6 +12,7 @@ const { CallHistory } = require('./history');
 const { Contacts, normalizeNumber } = require('./contacts');
 const { importOutlookContacts } = require('./outlook');
 const { readContactsCsv } = require('./csvimport');
+const { contactsToCsv } = require('./csvexport');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const APP_ORIGIN = 'app://phone';
@@ -178,6 +179,22 @@ async function importCsv() {
     const found = readContactsCsv(res.filePaths[0]);
     if (!found.length) return { error: 'In der Datei wurden keine Kontakte mit Telefonnummer gefunden.' };
     return mergeImported(found, 'csv');
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function exportCsv() {
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Kontakte als CSV exportieren',
+    defaultPath: 'kontakte.csv',
+    filters: [{ name: 'CSV-Dateien', extensions: ['csv'] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  try {
+    // BOM voran, damit Excel Umlaute als UTF-8 erkennt.
+    fs.writeFileSync(res.filePath, '﻿' + contactsToCsv(contacts.entries), 'utf8');
+    return { count: contacts.entries.length };
   } catch (err) {
     return { error: err.message };
   }
@@ -579,6 +596,7 @@ if (!app.requestSingleInstanceLock()) {
     });
     ipcMain.handle('phone:importOutlook', () => importOutlook());
     ipcMain.handle('phone:importCsv', () => importCsv());
+    ipcMain.handle('phone:exportCsv', () => exportCsv());
 
     createTray();
     createWindow();

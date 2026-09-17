@@ -265,7 +265,7 @@
 
   <dialog id="importDialog">
     <form method="dialog">
-      <h2>Kontakte importieren</h2>
+      <h2>Kontakte importieren / exportieren</h2>
       <button type="button" id="importOutlook" class="import-option">
         <strong>Aus Outlook übernehmen</strong>
         <span class="muted small">Liest alle Kontaktordner direkt aus dem klassischen Outlook.</span>
@@ -275,6 +275,10 @@
         <span class="muted small">Neues Outlook / Outlook.com: Personen → Kontakte verwalten → Kontakte exportieren. Klassisches Outlook: Datei → Öffnen und exportieren → Importieren/Exportieren.</span>
       </button>
       <p class="muted small">Vorhandene Kontakte bleiben erhalten; bei gleichem Namen werden fehlende Nummern ergänzt.</p>
+      <button type="button" id="exportCsv" class="import-option">
+        <strong>Als CSV-Datei exportieren</strong>
+        <span class="muted small">Speichert das gesamte Telefonbuch als CSV (öffnet in Excel, lässt sich hier und in Outlook wieder importieren).</span>
+      </button>
       <p id="importError" class="reason" hidden></p>
       <div class="dialog-actions"><span class="spacer"></span><button value="close" class="text-btn">Schließen</button></div>
     </form>

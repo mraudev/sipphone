@@ -606,6 +606,7 @@ const ICON_PATHS = {
   edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
   close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
   phone: 'M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z',
+  personAdd: 'M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
 };
 
 function svgIcon(d) {
@@ -703,7 +704,16 @@ function renderHistory() {
     // Rückruf über das Konto, auf dem das Gespräch lief (falls es das noch gibt)
     const known = (state.accounts || []).some((a) => a.id === entry.accountId);
     callBack.onclick = () => send({ type: 'dial', target: entry.remoteUri, accountId: known ? entry.accountId : selectedLine() });
-    li.append(dir, who, meta, callBack);
+    li.append(dir, who, meta);
+    // Nur anbieten, wenn die Nummer noch nicht im Telefonbuch steht
+    if (!entry.contactName) {
+      const add = el('button', 'icon-btn subtle entry-add');
+      add.title = 'Als Kontakt speichern';
+      add.append(svgIcon(ICON_PATHS.personAdd));
+      add.onclick = () => openContactDialog(null, { name: entry.remoteName || '', number: entry.remoteUri.replace(/^(sips?|tel):/i, '').split('@')[0] });
+      li.append(add);
+    }
+    li.append(callBack);
     return li;
   }));
   $('historyEmpty').hidden = history.length > 0;
@@ -767,14 +777,14 @@ function addNumberRow(label = NUMBER_LABELS[0], number = '') {
   $('numberRows').append(row);
 }
 
-function openContactDialog(contact = null) {
+function openContactDialog(contact = null, prefill = null) {
   const form = $('contactForm');
   editingContactId = contact ? contact.id : null;
-  form.elements.namedItem('name').value = contact ? contact.name : '';
+  form.elements.namedItem('name').value = contact ? contact.name : (prefill && prefill.name) || '';
   form.elements.namedItem('company').value = contact ? contact.company || '' : '';
   $('numberRows').replaceChildren();
   if (contact) contact.numbers.forEach((n) => addNumberRow(n.label, n.number));
-  else addNumberRow();
+  else addNumberRow(NUMBER_LABELS[0], (prefill && prefill.number) || '');
   $('contactTitle').textContent = contact ? 'Kontakt bearbeiten' : 'Neuer Kontakt';
   $('contactDelete').hidden = !contact;
   $('contactError').hidden = true;
@@ -829,6 +839,25 @@ async function runImport(kind) {
     toast(`${res.found} Kontakte gelesen – ${res.added} neu, ${res.updated} ergänzt`);
   } finally {
     buttons.forEach((b) => (b.disabled = false));
+  }
+}
+
+async function exportCsv() {
+  const btn = $('exportCsv');
+  btn.disabled = true;
+  $('importError').hidden = true;
+  try {
+    const res = await window.phone.exportCsv();
+    if (!res) return; // Speicherort-Auswahl abgebrochen
+    if (res.error) {
+      $('importError').textContent = res.error;
+      $('importError').hidden = false;
+      return;
+    }
+    $('importDialog').close();
+    toast(`${res.count} Kontakte exportiert`);
+  } finally {
+    btn.disabled = false;
   }
 }
 
@@ -1214,6 +1243,7 @@ $('addContact').onclick = () => openContactDialog();
 $('importBtn').onclick = openImportDialog;
 $('importOutlook').onclick = () => runImport('outlook');
 $('importCsv').onclick = () => runImport('csv');
+$('exportCsv').onclick = exportCsv;
 $('addNumber').onclick = () => addNumberRow();
 $('contactForm').onsubmit = saveContact;
 $('contactCancel').onclick = () => $('contactDialog').close();
