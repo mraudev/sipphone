@@ -114,6 +114,27 @@ function importLinphone(file) {
   };
 }
 
+// PhonerLite-Konto aus sipper.ini lesen (ohne Passwort – das ist an die AppGUID gebunden verschlüsselt).
+// Aktives Konto steht in [Profile] Profile=<Name>, die Daten im gleichnamigen Abschnitt.
+function parsePhonerLite(text) {
+  const ini = parseIni(text);
+  const lower = (obj) => Object.fromEntries(Object.entries(obj || {}).map(([k, v]) => [k.toLowerCase(), v]));
+  const profile = lower(ini.Profile).profile;
+  const sectionName = profile && ini[profile] ? profile : Object.keys(ini).find((k) => k.toLowerCase() !== 'profile');
+  const acc = lower(ini[sectionName]);
+  if (!acc || !acc.username) return null;
+  const [username, authUsername] = String(acc.username).split('|');
+  const display = /^\s*"([^"]*)"/.exec(acc.displayname || '');
+  const gateway = (acc.gateway || '').trim();
+  return {
+    label: gateway || sectionName || 'PhonerLite',
+    displayName: display ? display[1] : '',
+    username: (username || '').trim(),
+    authUsername: (authUsername || username || '').trim(),
+    domain: gateway,
+  };
+}
+
 // Liest <dir>/config.json; beim ersten Start wird sie aus Linphone importiert (oder leer angelegt).
 function loadConfig(dir) {
   configFile = path.join(dir, 'config.json');
@@ -135,4 +156,4 @@ function saveConfig(cfg) {
   fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2) + '\n');
 }
 
-module.exports = { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS };
+module.exports = { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS, parsePhonerLite };

@@ -312,6 +312,7 @@ dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 .account-form summary { margin-bottom: 10px; color: var(--muted); font-size: 13px; cursor: pointer; }
 .account-form .dialog-actions { margin-top: 8px; gap: 8px; }
 #addAccount { justify-self: start; }
+.import-phonerlite { display: block; margin: 2px 0 14px; }
 
 /* Konto-Auswahl für ausgehende Anrufe (nur bei mehreren Konten) */
 .line-row { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px; font-size: 13px; color: var(--muted); }

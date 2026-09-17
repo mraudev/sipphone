@@ -1219,6 +1219,26 @@ $('contactForm').onsubmit = saveContact;
 $('contactCancel').onclick = () => $('contactDialog').close();
 $('contactDelete').onclick = deleteContact;
 $('accountForm').onsubmit = saveAccount;
+$('importPhonerLite').onclick = async () => {
+  const res = await window.phone.importPhonerLite();
+  if (!res) return; // Dateiauswahl abgebrochen
+  if (res.error) {
+    toast(res.error, true);
+    return;
+  }
+  const f = $('accountForm');
+  const a = res.account;
+  f.elements.label.value = a.label || '';
+  f.elements.displayName.value = a.displayName || '';
+  f.elements.username.value = a.username || '';
+  f.elements.domain.value = a.domain || '';
+  if (a.authUsername && a.authUsername !== a.username) {
+    f.querySelector('details').open = true;
+    f.elements.authUsername.value = a.authUsername;
+  }
+  f.elements.password.focus();
+  toast('Konto aus PhonerLite übernommen – bitte noch das Passwort eingeben.');
+};
 $('accountCancel').onclick = closeAccountForm;
 $('accountDelete').onclick = deleteAccount;
 $('addAccount').onclick = () => {

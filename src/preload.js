@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('phone', {
   getAccounts: () => ipcRenderer.invoke('phone:accounts'),
   saveAccount: (data) => ipcRenderer.invoke('phone:saveAccount', data),
   deleteAccount: (id) => ipcRenderer.invoke('phone:deleteAccount', id),
+  importPhonerLite: () => ipcRenderer.invoke('phone:importPhonerLite'),
   getRingtone: () => ipcRenderer.invoke('phone:getRingtone'),
   chooseRingtone: () => ipcRenderer.invoke('phone:chooseRingtone'),
   resetRingtone: () => ipcRenderer.invoke('phone:resetRingtone'),

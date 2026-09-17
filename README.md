@@ -21,7 +21,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
-- **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen)
+- **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim Einrichten lässt sich ein Konto aus einer PhonerLite-`sipper.ini` übernehmen (alle Felder außer dem Passwort, das dort verschlüsselt liegt)
 
 ## Installation
 

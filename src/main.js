@@ -6,7 +6,7 @@ const { pathToFileURL } = require('url');
 const { app, BrowserWindow, ipcMain, protocol, net, session, nativeTheme, Menu, Tray, Notification, safeStorage, dialog, powerMonitor, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const logger = require('./logger');
-const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS } = require('./config');
+const { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS, parsePhonerLite } = require('./config');
 const { Phone } = require('./phone');
 const { CallHistory } = require('./history');
 const { Contacts, normalizeNumber } = require('./contacts');
@@ -349,6 +349,23 @@ async function deleteAccount(id) {
   return { accounts: accountsView() };
 }
 
+// PhonerLite-Konto aus einer gewählten sipper.ini vorbelegen (ohne Passwort – das ist verschlüsselt).
+async function importPhonerLite() {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'PhonerLite-Konfiguration (sipper.ini) wählen',
+    filters: [{ name: 'PhonerLite-Konfiguration', extensions: ['ini'] }],
+    properties: ['openFile'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    const account = parsePhonerLite(fs.readFileSync(res.filePaths[0], 'utf8'));
+    if (!account) return { error: 'In der Datei wurde kein SIP-Konto gefunden.' };
+    return { account };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 // Eigener Klingelton: wird in den App-Ordner kopiert, damit er auch nach Verschieben des Originals klingelt.
 const RINGTONE_TYPES = ['wav', 'mp3', 'ogg', 'm4a', 'flac'];
 const RINGTONE_MAX_BYTES = 10 * 1024 * 1024;
@@ -533,6 +550,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:accounts', () => accountsView());
     ipcMain.handle('phone:saveAccount', (_e, data) => saveAccount(data));
     ipcMain.handle('phone:deleteAccount', (_e, id) => deleteAccount(id));
+    ipcMain.handle('phone:importPhonerLite', () => importPhonerLite());
     ipcMain.handle('phone:getRingtone', () => ringtoneData());
     ipcMain.handle('phone:chooseRingtone', () => chooseRingtone());
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
