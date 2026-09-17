@@ -63,6 +63,8 @@ $env:SIP_TRACE='1'; npm start
 
 ## Updates
 
+Was sich je Version geändert hat, steht in [RELEASES.md](RELEASES.md).
+
 Die installierte App prüft beim Start und alle 4 Stunden, ob es auf GitHub ein neueres [Release](https://github.com/mraudev/sipphone/releases) gibt, und lädt es im Hintergrund. Danach erscheint *Update bereit – Neu starten* (nie während eines Gesprächs) samt aufklappbarer Beschreibung des Releases (*Was ist neu?*); ohne Klick wird das Update beim nächsten Beenden installiert. Die Portable-exe aktualisiert sich nicht selbst.
 
 Neue Version veröffentlichen:
