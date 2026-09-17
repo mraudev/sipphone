@@ -1285,6 +1285,14 @@ $('clearHistory').onclick = () => confirm('Verlauf wirklich löschen?') && windo
 window.addEventListener('focus', () => activeTab === 'history' && markHistorySeen());
 $('regStatus').onclick = openSettings;
 $('settingsBtn').onclick = openSettings;
+$('reconnectBtn').onclick = () => {
+  const btn = $('reconnectBtn');
+  btn.classList.remove('spinning');
+  void btn.offsetWidth; // Animation auch bei schnellem Wiederklick neu starten
+  btn.classList.add('spinning');
+  send({ type: 'register' });
+  toast('Neu verbinden …');
+};
 $('reRegister').onclick = () => send({ type: 'register' });
 $('takeoverBtn').onclick = () => send({ type: 'register' });
 $('lockUnregister').onchange = () => window.phone.setOptions({ lockUnregister: $('lockUnregister').checked });

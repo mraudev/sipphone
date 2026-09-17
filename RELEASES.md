@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.16.0
+- **„Neu verbinden"-Knopf** oben rechts (Aktualisieren-Symbol): baut die SIP-Registrierung jederzeit von Hand neu auf.
+
 ## 1.15.0
 - **Kontakt aus dem Verlauf übernehmen:** unbekannte Anrufer lassen sich im Verlauf mit einem Klick als Kontakt anlegen (Dialog vorbelegt mit Name und Nummer).
 - **CSV-Export des Telefonbuchs:** das gesamte Telefonbuch als CSV speichern (UTF-8, für Excel und zur Sicherung, in Outlook und der App wieder importierbar).

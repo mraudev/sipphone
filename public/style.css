@@ -71,6 +71,9 @@ body { overflow: hidden; }
 .phone > .view { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; }
+.topbar-actions { display: flex; align-items: center; gap: 2px; }
+.icon-btn.spinning svg { animation: spin 0.7s linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0.2px; }
 .brand svg { color: var(--accent); font-size: 18px; }
