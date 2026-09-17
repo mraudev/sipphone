@@ -16,6 +16,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
+- **Heller und dunkler Modus** (Einstellung „Darstellung"), standardmäßig nach Systemvorgabe
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar

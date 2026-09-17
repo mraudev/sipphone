@@ -1248,6 +1248,7 @@ $('micProcessing').onchange = () => {
   }
 };
 $('hdVoice').onchange = () => window.phone.setOptions({ hdVoice: $('hdVoice').checked });
+$('themeSelect').onchange = () => window.phone.setOptions({ theme: $('themeSelect').value });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
 $('testSpeaker').onclick = () => testTone('ringback');
@@ -1302,6 +1303,7 @@ window.phone.onAudioFormat((fmt) => {
     micProcessing = options.micProcessing;
     $('micProcessing').checked = micProcessing;
     $('hdVoice').checked = options.hdVoice;
+    $('themeSelect').value = options.theme || 'system';
     await refreshDevices();
     await initAudio();
     await loadRingtone();

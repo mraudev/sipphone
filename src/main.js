@@ -465,7 +465,7 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     logFile = logger.setup(app.getPath('userData'));
     console.log(`SIP Phone ${app.getVersion()} gestartet`);
-    nativeTheme.themeSource = 'dark';
+    nativeTheme.themeSource = 'system';
     Menu.setApplicationMenu(null);
     protocol.handle('app', (req) => {
       const file = path.join(PUBLIC, path.normalize(decodeURIComponent(new URL(req.url).pathname)));
@@ -479,6 +479,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler((_wc, permission, origin) => permission === 'media' && String(origin).startsWith(APP_ORIGIN));
 
     cfg = normalizeConfig(loadConfig(app.getPath('userData')));
+    nativeTheme.themeSource = ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system';
     loadSecrets();
     history = new CallHistory(app.getPath('userData'));
     contacts = new Contacts(app.getPath('userData'));
@@ -517,12 +518,16 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, theme: cfg.theme }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
       for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice']) {
         if (typeof options[key] === 'boolean') cfg[key] = options[key];
       }
       if (typeof options.hdVoice === 'boolean') phone.setHdVoice(options.hdVoice);
+      if (['light', 'dark', 'system'].includes(options.theme)) {
+        cfg.theme = options.theme;
+        nativeTheme.themeSource = options.theme;
+      }
       persist();
     });
     ipcMain.handle('phone:accounts', () => accountsView());

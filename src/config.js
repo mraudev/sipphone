@@ -38,6 +38,7 @@ const DEFAULTS = {
   showOnCall: true, // bei eingehendem Anruf das Fenster in den Vordergrund holen (sonst nur Windows-Meldung)
   micProcessing: true, // Rausch-/Echounterdrückung und Pegelautomatik von Windows/Chromium fürs Mikrofon
   hdVoice: true, // G.722 (Breitband) bevorzugt anbieten; fällt automatisch auf G.711 zurück
+  theme: 'system', // Darstellung: 'system' | 'light' | 'dark'
 };
 
 // Bis Version 1.1.3 stand genau ein Konto direkt in der Konfiguration -> wird das erste Konto.
