@@ -301,6 +301,11 @@ body { overflow: hidden; }
 .contact-number small { flex: none; width: 90px; }
 .contact-number span { flex: 1; font-variant-numeric: tabular-nums; }
 .contact-number svg { color: var(--green); }
+.contact-number-row { display: flex; align-items: center; gap: 2px; }
+.contact-number-row .contact-number { flex: 1; min-width: 0; }
+.contact-fav { flex: none; }
+.contact-fav svg { color: var(--muted); }
+.contact-fav.on svg { color: var(--amber); }
 .number-edit { display: flex; gap: 6px; margin-bottom: 8px; }
 dialog .number-edit select { flex: none; width: 130px; padding: 9px 6px; }
 .account-form .number-edit input { flex: 1; margin-top: 0; }

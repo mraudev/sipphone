@@ -13,7 +13,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
 - **Freisprech-Profil** mit eigenem Mikrofon und Lautsprecher: im Gespräch per Knopf umschalten (z. B. vom Headset auf Laptop-Lautsprecher, wenn jemand dazukommt); dazu ein dauerhaft eingeblendeter Lautstärkeregler
 - **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC)
-- **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage)
+- **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage). Nummern aus dem Telefonbuch lassen sich per Stern direkt auf die Kurzwahl legen
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf; unbekannte Anrufer lassen sich mit einem Klick als Kontakt ins Telefonbuch übernehmen
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com) sowie Export des gesamten Telefonbuchs als CSV (für Excel oder zur Sicherung). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen

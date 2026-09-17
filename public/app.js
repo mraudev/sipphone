@@ -611,6 +611,8 @@ const ICON_PATHS = {
   close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
   phone: 'M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z',
   personAdd: 'M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
+  star: 'M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z',
+  starOutline: 'M22 9.24l-7.19-.62L12 2 9.19 8.62 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.04L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28z',
 };
 
 function svgIcon(d) {
@@ -748,10 +750,17 @@ function renderContacts() {
     head.append(el('span', 'contact-avatar', initials(c.name)), who, edit);
     const numbers = el('div', 'contact-numbers');
     for (const n of c.numbers) {
-      const row = el('button', 'contact-number');
-      row.title = `${n.number} anrufen`;
-      row.append(el('small', 'muted', n.label || 'Telefon'), el('span', '', n.number), svgIcon(ICON_PATHS.phone));
-      row.onclick = () => send({ type: 'dial', target: n.dial, accountId: selectedLine() });
+      const dial = el('button', 'contact-number');
+      dial.title = `${n.number} anrufen`;
+      dial.append(el('small', 'muted', n.label || 'Telefon'), el('span', '', n.number), svgIcon(ICON_PATHS.phone));
+      dial.onclick = () => send({ type: 'dial', target: n.dial, accountId: selectedLine() });
+      const onFav = favorites.some((f) => f.number === n.dial);
+      const star = el('button', `icon-btn subtle contact-fav${onFav ? ' on' : ''}`);
+      star.title = onFav ? 'Von Kurzwahl entfernen' : 'Auf Kurzwahl legen';
+      star.append(svgIcon(onFav ? ICON_PATHS.star : ICON_PATHS.starOutline));
+      star.onclick = () => toggleFavorite(c.name, n.dial);
+      const row = el('div', 'contact-number-row');
+      row.append(dial, star);
       numbers.append(row);
     }
     li.append(head, numbers);
@@ -793,6 +802,17 @@ function renderFavorites() {
   $('favoritesEmpty').hidden = favorites.length > 0;
 }
 
+// Nummer eines Kontakts auf die Kurzwahl legen bzw. wieder entfernen (Stern im Telefonbuch).
+async function toggleFavorite(name, number) {
+  const exists = favorites.some((f) => f.number === number);
+  const next = exists ? favorites.filter((f) => f.number !== number) : [...favorites, { name, number }];
+  const res = await window.phone.saveFavorites(next);
+  favorites = res.list;
+  renderFavorites();
+  renderContacts(); // Sterne im Telefonbuch aktualisieren
+  toast(exists ? 'Von Kurzwahl entfernt' : 'Auf Kurzwahl gelegt');
+}
+
 function openFavoriteDialog(fav = null) {
   const form = $('favForm');
   editingFavorite = fav ? fav.number : null;
@@ -820,6 +840,7 @@ async function saveFavorite(e) {
   const res = await window.phone.saveFavorites(next);
   favorites = res.list;
   renderFavorites();
+  renderContacts();
   $('favDialog').close();
 }
 
@@ -828,6 +849,7 @@ async function deleteFavorite() {
   const res = await window.phone.saveFavorites(favorites.filter((f) => f.number !== editingFavorite));
   favorites = res.list;
   renderFavorites();
+  renderContacts();
   $('favDialog').close();
 }
 
