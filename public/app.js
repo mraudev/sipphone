@@ -37,6 +37,7 @@ let hidWasIncoming = false; // Zustandswechsel erkennen (klingelt -> ...)
 let hidAnswered = false; // aktuellen Anruf schon per Headset angenommen
 let hidHook = undefined; // zuletzt gemeldeter Hook-Switch-Zustand (1 = off-hook / Knopf gedrückt)
 let hidHookLoc = null; // Fundstelle des Hook-Switch-Bits im Input-Report
+let hidCallKeys = []; // Fundstellen des Anruf-Knopfs im Media-Modus (Consumer Play/Pause) – Fallback
 let hidRingLoc = null; // Fundstelle des Ring-Bits im Output-Report
 let hidOffHookLoc = null; // Fundstelle des Off-Hook-Bits im Output-Report
 const hidOut = new Map(); // reportId -> Uint8Array: gepufferte Ausgabe (LEDs/Signale)
@@ -1175,6 +1176,9 @@ function headsetLog(text) {
 const HOOK_SWITCH = (0x0b << 16) | 0x20; // Input: Rufannahme-/Gesprächsknopf (1 = off-hook)
 const RING = (0x08 << 16) | 0x18; // Output: eingehenden Anruf am Headset signalisieren
 const OFF_HOOK = (0x08 << 16) | 0x17; // Output: „im Gespräch“
+// Manche Headsets (z. B. Jabra Evolve2) senden den Anruf-/Multifunktionsknopf im Ruhezustand als
+// Consumer-Medientaste statt als Hook Switch – als Fallback beim Klingeln ebenfalls als „annehmen“ werten.
+const CALL_KEYS = [(0x0c << 16) | 0xcd, (0x0c << 16) | 0xb0]; // Play/Pause, Play
 
 // Alle Reports einer Art (inputReports/outputReports) über verschachtelte Collections einsammeln.
 function allReports(dev, kind) {
@@ -1228,27 +1232,34 @@ function updateHeadsetCall() {
   setOutput(hidOffHookLoc, !!call && call.state !== 'incoming');
 }
 
-// Rufannahme-/Gesprächsknopf (Hook Switch): drücken beim Klingeln = annehmen, im Gespräch = auflegen.
+function answerFromHeadset() {
+  if (hidAnswered || Date.now() < hidArmedAt) return;
+  hidAnswered = true;
+  headsetLog('-> Anruf angenommen (Headset-Knopf)');
+  send({ type: 'answer' });
+}
+
+// Headset-Knopf: annehmen beim Klingeln, auflegen im Gespräch. Zwei Wege je nach Headset-Modus:
+// (1) Hook Switch (Standard-Anrufsteuerung), (2) Anruf-Knopf als Consumer-Medientaste (Fallback).
 function onHidInput(e) {
   const bytes = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
   headsetLog(`report id=${e.reportId} [${[...bytes].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join(' ')}…]`);
-  if (!headsetAnswer || !hidHookLoc || hidHookLoc.reportId !== e.reportId) return;
-  const hook = readBit(e.data, hidHookLoc.bit);
-  if (hook === null) return;
-  const prev = hidHook;
-  hidHook = hook;
-  headsetLog(`Hook-Switch: ${hook}${prev === undefined ? '' : ` (vorher ${prev})`}`);
+  if (!headsetAnswer) return;
   const call = state.call;
-  if (!call) return;
-  if (call.state === 'incoming') {
-    if (prev === 0 && hook === 1 && !hidAnswered && Date.now() >= hidArmedAt) {
-      hidAnswered = true;
-      headsetLog('-> Anruf angenommen (Headset-Knopf)');
-      send({ type: 'answer' });
+  // (1) Hook Switch
+  if (hidHookLoc && hidHookLoc.reportId === e.reportId) {
+    const hook = readBit(e.data, hidHookLoc.bit);
+    if (hook !== null) {
+      const prev = hidHook;
+      hidHook = hook;
+      headsetLog(`Hook-Switch: ${hook}${prev === undefined ? '' : ` (vorher ${prev})`}`);
+      if (call && call.state === 'incoming' && prev === 0 && hook === 1) { answerFromHeadset(); return; }
+      if (call && call.state !== 'incoming' && prev === 1 && hook === 0) { headsetLog('-> Gespräch beendet (Headset-Knopf)'); send({ type: 'hangup' }); return; }
     }
-  } else if (prev === 1 && hook === 0) {
-    headsetLog('-> Gespräch beendet (Headset-Knopf)');
-    send({ type: 'hangup' });
+  }
+  // (2) Fallback: Anruf-Knopf im Media-Modus, nur beim Klingeln als „annehmen“ werten
+  if (call && call.state === 'incoming' && hidCallKeys.some((l) => l.reportId === e.reportId && readBit(e.data, l.bit) === 1)) {
+    answerFromHeadset();
   }
 }
 
@@ -1265,8 +1276,9 @@ async function useHeadset(dev) {
     hidHookLoc = findReportBit(inR, HOOK_SWITCH);
     hidRingLoc = findReportBit(outR, RING);
     hidOffHookLoc = findReportBit(outR, OFF_HOOK);
+    hidCallKeys = CALL_KEYS.map((u) => findReportBit(inR, u)).filter(Boolean);
     const loc = (l) => (l ? `r${l.reportId}/b${l.bit}` : 'nein');
-    headsetLog(`verbunden: ${devLabel(dev)} – Hook ${loc(hidHookLoc)}, Ring ${loc(hidRingLoc)}, OffHook ${loc(hidOffHookLoc)}`);
+    headsetLog(`verbunden: ${devLabel(dev)} – Hook ${loc(hidHookLoc)}, Ring ${loc(hidRingLoc)}, OffHook ${loc(hidOffHookLoc)}, Anruf-Taste ${hidCallKeys.map(loc).join('+') || 'nein'}`);
     if (!hidHookLoc) {
       const usages = inR.map((r) => `r${r.reportId}:${(r.items || []).flatMap((i) => i.usages || []).map((u) => u.toString(16)).join(',')}`);
       headsetLog('Input-Reports: ' + (usages.join(' | ') || 'keine'));

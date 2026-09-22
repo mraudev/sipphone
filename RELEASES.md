@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.6
+- **Headset-Annahme auch ohne aktive Softphone-Integration:** Sendet das Headset den Anruf-Knopf im Ruhezustand als Medientaste (statt als Hook Switch), nimmt die App beim Klingeln trotzdem an. Der Standard-Weg (Hook Switch/Ring) bleibt zusätzlich aktiv.
+
 ## 1.20.5
 - **Headset-Annahme über die Standard-Anrufsteuerung:** Beim Klingeln signalisiert die App dem Headset den Anruf (Ring), der **Rufannahme-/Gesprächsknopf** nimmt an, im Gespräch legt er auf (Ring-/Hook-Handshake, HID-LED-Page). Zuverlässiger als der Mikrofonarm, der beim Klingeln nicht auswertbar war.
 
