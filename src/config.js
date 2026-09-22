@@ -39,6 +39,7 @@ const DEFAULTS = {
   micProcessing: true, // Rausch-/Echounterdrückung und Pegelautomatik von Windows/Chromium fürs Mikrofon
   hdVoice: true, // G.722 (Breitband) bevorzugt anbieten; fällt automatisch auf G.711 zurück
   theme: 'system', // Darstellung: 'system' | 'light' | 'dark'
+  ringOnHeadset: false, // bei eingehendem Anruf zusätzlich auf dem Gesprächsgerät (Headset) klingeln
   favorites: [], // Kurzwahl: [{ name, number }] – Status per Besetztlampenfeld (BLF), sofern die Anlage es liefert
 };
 

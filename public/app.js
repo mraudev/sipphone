@@ -29,6 +29,7 @@ let editingAccount = false;
 let editingAccountId = null;
 let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
+let ringOnHeadset = false; // Klingelton zusätzlich auf dem Gesprächsgerät (Headset)
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
@@ -600,6 +601,7 @@ class Pager {
 
 const historyPager = new Pager($('historyList'), $('historyPager'));
 const contactPager = new Pager($('contactList'), $('contactPager'));
+const favoritePager = new Pager($('favoriteList'), $('favoritePager'));
 
 // --- Verlauf ---
 
@@ -642,6 +644,7 @@ function setTab(tab) {
   // solange Windows das Fenster für verdeckt hält.
   if (tab === 'history') historyPager.layout();
   else if (tab === 'contacts') contactPager.layout();
+  else if (tab === 'speeddial') favoritePager.layout();
 }
 
 function historySeen() {
@@ -777,8 +780,7 @@ function renderContacts() {
 const PRESENCE_LABELS = { idle: 'frei', ringing: 'klingelt', busy: 'besetzt', unknown: 'kein Status' };
 
 function renderFavorites() {
-  const list = $('favoriteList');
-  list.replaceChildren(...favorites.map((f) => {
+  favoritePager.show(favorites.map((f) => {
     const state = presence[f.number] || 'unknown';
     const li = el('li', 'favorite');
     li.dataset.state = state;
@@ -1064,47 +1066,54 @@ const TONES = {
 };
 let tone = null; // { kind, timer, oscillators }
 
+// Klingelton (eingehend) wahlweise gleichzeitig auf Klingel-Gerät und Gesprächsgerät (Headset).
+function toneContexts(kind) {
+  if (kind !== 'ring') return [audio[TONES[kind].ctx]];
+  return ringOnHeadset && audio.ctx !== audio.ringCtx ? [audio.ringCtx, audio.ctx] : [audio.ringCtx];
+}
+
 function playTone(kind) {
   if (tone && tone.kind === kind) return;
   stopTone();
   if (!audio) return;
   const spec = TONES[kind];
-  const ctx = audio[spec.ctx];
-  tone = { kind, oscillators: [] };
-  if (kind === 'ring' && ringtone) {
-    const source = ctx.createBufferSource();
-    source.buffer = ringtone.buffer;
-    source.loop = true;
-    source.connect(ctx.destination);
-    source.start();
-    tone.oscillators.push(source);
-    return;
-  }
-  const burst = () => {
-    const t0 = ctx.currentTime + 0.05;
-    for (const [freq, start, dur] of spec.notes) {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const at = t0 + start;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, at);
-      gain.gain.linearRampToValueAtTime(spec.gain, at + 0.015);
-      gain.gain.setValueAtTime(spec.gain, at + dur - 0.03);
-      gain.gain.linearRampToValueAtTime(0, at + dur);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(at);
-      osc.stop(at + dur + 0.02);
-      tone.oscillators.push(osc);
-      osc.onended = () => tone && (tone.oscillators = tone.oscillators.filter((o) => o !== osc));
+  tone = { kind, oscillators: [], timers: [] };
+  for (const ctx of toneContexts(kind)) {
+    if (kind === 'ring' && ringtone) {
+      const source = ctx.createBufferSource();
+      source.buffer = ringtone.buffer;
+      source.loop = true;
+      source.connect(ctx.destination);
+      source.start();
+      tone.oscillators.push(source);
+      continue;
     }
-  };
-  burst();
-  tone.timer = setInterval(burst, spec.period * 1000);
+    const burst = () => {
+      const t0 = ctx.currentTime + 0.05;
+      for (const [freq, start, dur] of spec.notes) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const at = t0 + start;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, at);
+        gain.gain.linearRampToValueAtTime(spec.gain, at + 0.015);
+        gain.gain.setValueAtTime(spec.gain, at + dur - 0.03);
+        gain.gain.linearRampToValueAtTime(0, at + dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(at);
+        osc.stop(at + dur + 0.02);
+        tone.oscillators.push(osc);
+        osc.onended = () => tone && (tone.oscillators = tone.oscillators.filter((o) => o !== osc));
+      }
+    };
+    burst();
+    tone.timers.push(setInterval(burst, spec.period * 1000));
+  }
 }
 
 function stopTone() {
   if (!tone) return;
-  clearInterval(tone.timer);
+  for (const timer of tone.timers) clearInterval(timer);
   for (const osc of tone.oscillators) {
     try {
       osc.stop();
@@ -1404,6 +1413,14 @@ $('micProcessing').onchange = () => {
   }
 };
 $('hdVoice').onchange = () => window.phone.setOptions({ hdVoice: $('hdVoice').checked });
+$('ringOnHeadset').onchange = () => {
+  ringOnHeadset = $('ringOnHeadset').checked;
+  window.phone.setOptions({ ringOnHeadset });
+  if (tone && tone.kind === 'ring') { // klingelt gerade -> sofort umstellen
+    stopTone();
+    playTone('ring');
+  }
+};
 $('themeSelect').onchange = () => window.phone.setOptions({ theme: $('themeSelect').value });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
@@ -1463,6 +1480,8 @@ window.phone.onAudioFormat((fmt) => {
     micProcessing = options.micProcessing;
     $('micProcessing').checked = micProcessing;
     $('hdVoice').checked = options.hdVoice;
+    ringOnHeadset = options.ringOnHeadset;
+    $('ringOnHeadset').checked = ringOnHeadset;
     $('themeSelect').value = options.theme || 'system';
     await refreshDevices();
     await initAudio();

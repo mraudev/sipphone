@@ -2,6 +2,10 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.19.0
+- **Kurzwahl blättert:** der Reiter „Kurzwahl" nutzt jetzt Seiten (wie Verlauf und Telefonbuch) statt eines Scrollbalkens.
+- **Klingeln zusätzlich im Headset:** neue Option, bei der der Klingelton bei einem Anruf gleichzeitig auf dem Klingel-Gerät und dem Gesprächsgerät (Headset) kommt.
+
 ## 1.18.0
 - **Kontakt auf Kurzwahl legen:** im Telefonbuch je Rufnummer ein Stern-Knopf, der die Nummer auf die Kurzwahl legt (und wieder entfernt).
 

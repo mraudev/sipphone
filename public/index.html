@@ -103,6 +103,11 @@
         </button>
       </div>
       <ul id="favoriteList" class="favorite-list"></ul>
+      <div id="favoritePager" class="pager">
+        <button class="icon-btn subtle" data-dir="-1" title="Vorige Seite" aria-label="Vorige Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+        <span class="pager-label"></span>
+        <button class="icon-btn subtle" data-dir="1" title="Nächste Seite" aria-label="Nächste Seite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 6 8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg></button>
+      </div>
       <p id="favoritesEmpty" class="muted empty">Noch keine Kurzwahl. Mit + eine Nebenstelle oder Nummer anlegen; der Punkt zeigt den Status (frei/klingelt/besetzt), sofern die Anlage ihn liefert.</p>
     </section>
 
@@ -241,6 +246,10 @@
           <button type="button" id="ringtoneReset" class="text-btn" hidden>Standard</button>
         </div>
       </div>
+      <label class="check">
+        <input type="checkbox" id="ringOnHeadset">
+        <span>Bei Anruf zusätzlich im Headset klingeln<small class="muted">Der Klingelton kommt dann gleichzeitig auf dem Klingel-Gerät und auf dem Gesprächsgerät (Headset).</small></span>
+      </label>
       <div class="field">
         <label for="spkMicSelect">Freisprech-Profil – Mikrofon</label>
         <select id="spkMicSelect"></select>

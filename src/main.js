@@ -557,9 +557,9 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, theme: cfg.theme }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, theme: cfg.theme }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
-      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice']) {
+      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice', 'ringOnHeadset']) {
         if (typeof options[key] === 'boolean') cfg[key] = options[key];
       }
       if (typeof options.hdVoice === 'boolean') phone.setHdVoice(options.hdVoice);
