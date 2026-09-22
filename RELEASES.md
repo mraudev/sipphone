@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.3
+- **Headset-Annahme nur noch beim Unmute:** Bisher nahm das Headset den Anruf sofort beim Klingeln an (es wertete jeden Headset-Report aus). Jetzt wird gezielt der „Phone Mute“-Zustand gelesen und nur beim **Unmute** (Mikrofonarm runterklappen, 1→0) angenommen.
+
 ## 1.20.2
 - **Richtiges Headset für die Rufannahme:** Bei mehreren angeschlossenen Jabras wird jetzt das HID-Gerät genutzt, das zum eingestellten Gesprächs-Gerät passt (gleiche USB-Kennung), statt einfach das erste Jabra. Wechselt automatisch mit, wenn das Gesprächs-Gerät geändert wird.
 
