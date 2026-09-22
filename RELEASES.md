@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.0
+- **Anruf per Headset-Knopf annehmen (Jabra):** neue Option – während es klingelt, nimmt ein Druck auf den Mute-Knopf des Headsets den Anruf an. Über WebHID-Anrufsteuerung; einmalig „Headset verbinden“ in den Einstellungen.
+
 ## 1.19.0
 - **Kurzwahl blättert:** der Reiter „Kurzwahl" nutzt jetzt Seiten (wie Verlauf und Telefonbuch) statt eines Scrollbalkens.
 - **Klingeln zusätzlich im Headset:** neue Option, bei der der Klingelton bei einem Anruf gleichzeitig auf dem Klingel-Gerät und dem Gesprächsgerät (Headset) kommt.

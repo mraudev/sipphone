@@ -63,6 +63,16 @@ function createWindow() {
     },
   });
   win.loadURL('app://phone/index.html');
+  // WebHID: Headset (Telefonie-HID, z. B. Jabra) zur Rufannahme per Knopf zulassen. Die Geräteauswahl
+  // bei navigator.hid.requestDevice() beantwortet der Hauptprozess selbst – bevorzugt ein Jabra.
+  const ses = win.webContents.session;
+  ses.setDevicePermissionHandler((details) => details.deviceType === 'hid');
+  ses.on('select-hid-device', (event, details, callback) => {
+    event.preventDefault();
+    const list = details.deviceList || [];
+    const pick = list.find((d) => /jabra/i.test(d.name || d.productName || '')) || list[0];
+    callback(pick ? pick.deviceId : undefined);
+  });
   // Das Fenster zeigt nur die eigene Oberfläche: keine neuen Fenster, keine Navigation woandershin.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e, url) => {
@@ -557,9 +567,9 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, theme: cfg.theme }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, headsetAnswer: cfg.headsetAnswer, theme: cfg.theme }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
-      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice', 'ringOnHeadset']) {
+      for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice', 'ringOnHeadset', 'headsetAnswer']) {
         if (typeof options[key] === 'boolean') cfg[key] = options[key];
       }
       if (typeof options.hdVoice === 'boolean') phone.setHdVoice(options.hdVoice);
@@ -578,6 +588,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
     ipcMain.handle('phone:version', () => app.getVersion());
     ipcMain.handle('phone:openLog', () => shell.showItemInFolder(logFile));
+    ipcMain.on('phone:log', (_e, text) => console.log('[Headset]', String(text).slice(0, 300)));
     ipcMain.handle('phone:getUpdate', () => (updateReady ? { version: updateReady, notes: updateNotes } : null));
     ipcMain.handle('phone:installUpdate', () => installUpdate());
     ipcMain.handle('phone:history', () => historyView());

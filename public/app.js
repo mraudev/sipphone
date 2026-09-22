@@ -30,6 +30,11 @@ let editingAccountId = null;
 let update = null; // heruntergeladenes Update, wartet auf Neustart: { version, notes }
 let micProcessing = true; // Rausch-/Echounterdrückung fürs Mikrofon (aus config.json)
 let ringOnHeadset = false; // Klingelton zusätzlich auf dem Gesprächsgerät (Headset)
+let headsetAnswer = false; // Anruf per Mute-Knopf am Headset annehmen (WebHID)
+let hidDevice = null; // verbundenes Headset (HID)
+let hidArmedAt = 0; // ab diesem Zeitpunkt zählt ein Headset-Druck als Rufannahme
+let hidWasIncoming = false; // Zustandswechsel erkennen (klingelt -> ...)
+let hidAnswered = false; // aktuellen Anruf schon per Headset angenommen
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
@@ -1138,6 +1143,86 @@ function updateAudio() {
   else stopTone();
 
   if (!call && audio) audio.node.port.postMessage('reset');
+
+  // Beginnt es zu klingeln: Headset-Annahme scharf schalten (kurze Sperre gegen Echo-Reports beim Start).
+  const incoming = !!call && call.state === 'incoming';
+  if (incoming && !hidWasIncoming) {
+    hidArmedAt = Date.now() + 300;
+    hidAnswered = false;
+  }
+  hidWasIncoming = incoming;
+}
+
+// --- Rufannahme per Headset (WebHID, z. B. Jabra) ---
+// Während es klingelt, zählt der erste Tastendruck am Headset (Mute-Knopf sendet einen Input-Report)
+// als Rufannahme. Bewusst tastenunabhängig gehalten, damit es über verschiedene Headset-Modelle greift.
+
+function headsetLog(text) {
+  try { window.phone.logHeadset(text); } catch {}
+}
+
+function onHidInput(e) {
+  const bytes = new Uint8Array(e.data.buffer);
+  headsetLog(`report id=${e.reportId} [${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' ')}]`);
+  if (!headsetAnswer || hidAnswered) return;
+  const call = state.call;
+  if (!call || call.state !== 'incoming' || Date.now() < hidArmedAt) return;
+  hidAnswered = true;
+  headsetLog('-> Anruf per Headset angenommen');
+  send({ type: 'answer' });
+}
+
+async function useHeadset(dev) {
+  try {
+    if (!dev.opened) await dev.open();
+    dev.oninputreport = onHidInput;
+    hidDevice = dev;
+    headsetLog(`verbunden: ${dev.productName || 'HID'} (VID ${dev.vendorId.toString(16)}/PID ${dev.productId.toString(16)})`);
+  } catch (err) {
+    headsetLog('open: ' + err.message);
+  }
+}
+
+// Bereits erlaubtes Headset wieder anbinden (ohne Auswahldialog), bevorzugt ein Telefonie-Gerät.
+async function attachGrantedHeadset() {
+  if (!navigator.hid) return;
+  try {
+    const devs = await navigator.hid.getDevices();
+    const dev = devs.find((d) => d.collections.some((c) => c.usagePage === 0x0b)) || devs[0];
+    if (dev) await useHeadset(dev);
+  } catch (err) {
+    headsetLog('getDevices: ' + err.message);
+  }
+}
+
+// Headset auswählen (Nutzer-Geste über den Knopf in den Einstellungen).
+async function connectHeadset() {
+  if (!navigator.hid) {
+    toast('Dieses System unterstützt kein WebHID.', true);
+    return;
+  }
+  try {
+    const devs = await navigator.hid.requestDevice({ filters: [{ usagePage: 0x0b }] });
+    if (devs.length) await useHeadset(devs[0]);
+  } catch (err) {
+    headsetLog('requestDevice: ' + err.message);
+    toast('Headset konnte nicht verbunden werden.', true);
+  }
+  updateHeadsetStatus();
+}
+
+function updateHeadsetStatus() {
+  $('headsetRow').hidden = !headsetAnswer;
+  $('headsetStatus').textContent = hidDevice ? `Verbunden: ${hidDevice.productName || 'Headset'}` : 'Kein Headset verbunden';
+}
+
+function initHeadset() {
+  if (!navigator.hid) return;
+  navigator.hid.addEventListener('disconnect', (e) => {
+    if (e.device === hidDevice) { hidDevice = null; updateHeadsetStatus(); }
+  });
+  navigator.hid.addEventListener('connect', () => { if (headsetAnswer && !hidDevice) attachGrantedHeadset().then(updateHeadsetStatus); });
+  if (headsetAnswer) attachGrantedHeadset().then(updateHeadsetStatus);
 }
 
 // --- Geräte (Namen stehen in config.json, Vorbelegung aus Linphone) ---
@@ -1174,6 +1259,7 @@ async function openSettings() {
   fill($('ringerSelect'), 'audiooutput', audioCfg.ringer);
   fill($('spkMicSelect'), 'audioinput', audioCfg.spkMicrophone);
   fill($('spkSpeakerSelect'), 'audiooutput', audioCfg.spkSpeaker);
+  updateHeadsetStatus();
   $('settings').showModal();
   startMeter();
 }
@@ -1421,6 +1507,13 @@ $('ringOnHeadset').onchange = () => {
     playTone('ring');
   }
 };
+$('headsetAnswer').onchange = async () => {
+  headsetAnswer = $('headsetAnswer').checked;
+  window.phone.setOptions({ headsetAnswer });
+  if (headsetAnswer) await attachGrantedHeadset();
+  updateHeadsetStatus();
+};
+$('connectHeadset').onclick = connectHeadset;
 $('themeSelect').onchange = () => window.phone.setOptions({ theme: $('themeSelect').value });
 $('gateBtn').onclick = unlockAudio;
 for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 'spkSpeakerSelect']) $(id).onchange = onDeviceChange;
@@ -1482,6 +1575,8 @@ window.phone.onAudioFormat((fmt) => {
     $('hdVoice').checked = options.hdVoice;
     ringOnHeadset = options.ringOnHeadset;
     $('ringOnHeadset').checked = ringOnHeadset;
+    headsetAnswer = options.headsetAnswer;
+    $('headsetAnswer').checked = headsetAnswer;
     $('themeSelect').value = options.theme || 'system';
     await refreshDevices();
     await initAudio();
@@ -1503,4 +1598,5 @@ window.phone.onAudioFormat((fmt) => {
   presence = fav.presence || {};
   renderFavorites();
   render();
+  initHeadset();
 })();

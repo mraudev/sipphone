@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('phone', {
   resetRingtone: () => ipcRenderer.invoke('phone:resetRingtone'),
   getVersion: () => ipcRenderer.invoke('phone:version'),
   openLog: () => ipcRenderer.invoke('phone:openLog'),
+  logHeadset: (text) => ipcRenderer.send('phone:log', text),
   getUpdate: () => ipcRenderer.invoke('phone:getUpdate'),
   installUpdate: () => ipcRenderer.invoke('phone:installUpdate'),
   onUpdate: (cb) => ipcRenderer.on('phone:update', (_e, version) => cb(version)),

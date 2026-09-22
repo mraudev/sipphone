@@ -275,6 +275,14 @@
         <input type="checkbox" id="lockUnregister">
         <span>Abmelden, solange der PC gesperrt ist<small class="muted">Ein im Büro vergessenes SIP Phone verdrängt dann nicht das im Homeoffice.</small></span>
       </label>
+      <label class="check">
+        <input type="checkbox" id="headsetAnswer">
+        <span>Anruf per Mute-Knopf am Headset annehmen<small class="muted">Während es klingelt, nimmt ein Druck auf den Mute-Knopf des Headsets (Jabra) den Anruf an. Einmalig „Headset verbinden“ nötig.</small></span>
+      </label>
+      <div id="headsetRow" class="device-row" hidden>
+        <span id="headsetStatus" class="muted small">Kein Headset verbunden</span>
+        <button type="button" id="connectHeadset" class="text-btn">Headset verbinden …</button>
+      </div>
       <div class="account">
         <span class="muted small">Konten</span>
         <div id="accountList" class="account-list"></div>
