@@ -35,8 +35,8 @@ let hidDevice = null; // verbundenes Headset (HID)
 let hidArmedAt = 0; // ab diesem Zeitpunkt zählt ein Headset-Druck als Rufannahme
 let hidWasIncoming = false; // Zustandswechsel erkennen (klingelt -> ...)
 let hidAnswered = false; // aktuellen Anruf schon per Headset angenommen
-let hidMute = undefined; // zuletzt gemeldeter Mute-Zustand des Headsets (1 = stumm/Arm oben)
-let hidMuteLoc = null; // Fundstelle des "Phone Mute"-Bits im Input-Report { reportId, bit }
+let hidUnmuted = undefined; // zuletzt gemeldeter Zustand: true = nicht stumm (Arm unten)
+let hidMuteLoc = null; // Fundstelle des "Phone Mute"-Bits im Standard-Input-Report { reportId, bit }
 let callRate = 8000; // Audioabtastrate des aktuellen Gesprächs (8 kHz G.711 / 16 kHz G.722)
 let transferOpen = false; // Weiterleiten-Leiste im Gespräch sichtbar
 let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
@@ -1202,22 +1202,36 @@ function readBit(view, bit) {
   return byte < view.byteLength ? (view.getUint8(byte) >> (bit & 7)) & 1 : null;
 }
 
-// Nur das Unmute (Mikrofonarm runterklappen: Phone Mute 1 -> 0) nimmt einen klingelnden Anruf an.
+// Aus einem Input-Report den Mute-/Arm-Zustand lesen: true = nicht stumm (Arm unten), undefined = irrelevant.
+// 1) Standard-HID "Phone Mute" (Bit im per Deskriptor gefundenen Report; 1 = stumm).
+// 2) Jabra-Vendor-Report id 5, Nachrichtentyp Byte4=0x23: Byte5 0x02 = Arm unten, 0x01 = Arm oben.
+function readUnmuted(e, bytes) {
+  if (hidMuteLoc && hidMuteLoc.reportId === e.reportId) {
+    const bit = readBit(e.data, hidMuteLoc.bit);
+    return bit === null ? undefined : bit === 0;
+  }
+  if (e.reportId === 5 && bytes[4] === 0x23) {
+    if (bytes[5] === 0x02) return true;
+    if (bytes[5] === 0x01) return false;
+  }
+  return undefined;
+}
+
+// Nur das Runterklappen des Mikrofonarms (stumm -> nicht stumm) nimmt einen klingelnden Anruf an.
 function onHidInput(e) {
   const bytes = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
-  headsetLog(`report id=${e.reportId} [${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join(' ')}]`);
-  if (!hidMuteLoc || hidMuteLoc.reportId !== e.reportId) return;
-  const mute = readBit(e.data, hidMuteLoc.bit);
-  if (mute === null) return;
-  const prev = hidMute;
-  hidMute = mute;
-  headsetLog(`Mute-Zustand: ${mute}${prev === undefined ? '' : ` (vorher ${prev})`}`);
+  headsetLog(`report id=${e.reportId} [${[...bytes].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join(' ')}…]`);
+  const unmuted = readUnmuted(e, bytes);
+  if (unmuted === undefined) return;
+  const prev = hidUnmuted;
+  hidUnmuted = unmuted;
+  headsetLog(`Arm/Mute: ${unmuted ? 'unten (nicht stumm)' : 'oben (stumm)'}${prev === undefined ? '' : ` (vorher ${prev ? 'unten' : 'oben'})`}`);
   if (!headsetAnswer || hidAnswered) return;
   const call = state.call;
   if (!call || call.state !== 'incoming' || Date.now() < hidArmedAt) return;
-  if (prev === 1 && mute === 0) {
+  if (prev === false && unmuted === true) { // Arm runtergeklappt
     hidAnswered = true;
-    headsetLog('-> Anruf per Headset angenommen (Unmute)');
+    headsetLog('-> Anruf angenommen (Arm runtergeklappt)');
     send({ type: 'answer' });
   }
 }
@@ -1228,7 +1242,7 @@ async function useHeadset(dev) {
     if (!dev.opened) await dev.open();
     dev.oninputreport = onHidInput;
     hidDevice = dev;
-    hidMute = undefined;
+    hidUnmuted = undefined;
     hidMuteLoc = findUsageBit(dev, PHONE_MUTE);
     headsetLog(`verbunden: ${devLabel(dev)} – Mute-Bit ${hidMuteLoc ? `Report ${hidMuteLoc.reportId}, Bit ${hidMuteLoc.bit}` : 'NICHT gefunden'}`);
     if (!hidMuteLoc) {

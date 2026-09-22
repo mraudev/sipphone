@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.4
+- **Headset-Annahme erkennt den Jabra-Mikrofonarm:** Das Runterklappen meldet das Jabra über seinen eigenen HID-Report (nicht den Standard-Mute-Report). Die App wertet diesen jetzt aus und nimmt beim Runterklappen (Arm oben→unten) an; andere Headset-Meldungen (Akku/Status) werden ignoriert.
+
 ## 1.20.3
 - **Headset-Annahme nur noch beim Unmute:** Bisher nahm das Headset den Anruf sofort beim Klingeln an (es wertete jeden Headset-Report aus). Jetzt wird gezielt der „Phone Mute“-Zustand gelesen und nur beim **Unmute** (Mikrofonarm runterklappen, 1→0) angenommen.
 
