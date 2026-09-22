@@ -21,7 +21,7 @@ Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her. Der Knopf mit dem Aktualisieren-Symbol oben rechts baut die Verbindung jederzeit von Hand neu auf
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
-- **Annehmen per Headset-Knopf** (optional): Während es klingelt, nimmt ein Druck auf den Mute-Knopf des Headsets den Anruf an. Nutzt die HID-Anrufsteuerung des Headsets (getestet mit Jabra); einmalig in den Einstellungen *Headset verbinden*
+- **Annehmen per Headset-Knopf** (optional): Während es klingelt, signalisiert die App dem Headset den Anruf und ein Druck auf den Rufannahme-/Gesprächsknopf nimmt an; im Gespräch legt derselbe Knopf auf. Nutzt die Standard-HID-Anrufsteuerung (getestet mit Jabra); einmalig in den Einstellungen *Headset verbinden*
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
 - **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim Einrichten lässt sich ein Konto aus einer PhonerLite-`sipper.ini` übernehmen (alle Felder außer dem Passwort, das dort verschlüsselt liegt)
 

@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.5
+- **Headset-Annahme über die Standard-Anrufsteuerung:** Beim Klingeln signalisiert die App dem Headset den Anruf (Ring), der **Rufannahme-/Gesprächsknopf** nimmt an, im Gespräch legt er auf (Ring-/Hook-Handshake, HID-LED-Page). Zuverlässiger als der Mikrofonarm, der beim Klingeln nicht auswertbar war.
+
 ## 1.20.4
 - **Headset-Annahme erkennt den Jabra-Mikrofonarm:** Das Runterklappen meldet das Jabra über seinen eigenen HID-Report (nicht den Standard-Mute-Report). Die App wertet diesen jetzt aus und nimmt beim Runterklappen (Arm oben→unten) an; andere Headset-Meldungen (Akku/Status) werden ignoriert.
 
