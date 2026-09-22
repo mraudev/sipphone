@@ -1082,6 +1082,9 @@ function playTone(kind) {
   stopTone();
   if (!audio) return;
   const spec = TONES[kind];
+  if (kind === 'ring' && ringOnHeadset) {
+    headsetLog(`Klingeln zusätzlich im Headset -> Gespräch-Gerät="${activeSpeaker() || 'Systemstandard'}", Klingel-Gerät="${audioCfg.ringer || 'Systemstandard'}"`);
+  }
   tone = { kind, oscillators: [], timers: [] };
   for (const ctx of toneContexts(kind)) {
     if (kind === 'ring' && ringtone) {
@@ -1183,12 +1186,22 @@ async function useHeadset(dev) {
   }
 }
 
-// Bereits erlaubtes Headset wieder anbinden (ohne Auswahldialog), bevorzugt ein Telefonie-Gerät.
+const JABRA_VID = 0x0b0e; // Hersteller-ID von GN/Jabra
+
+// Aus einer Geräteliste das passende Headset wählen: erst Jabra, dann ein Telefonie-HID.
+function pickHeadset(devs) {
+  return devs.find((d) => d.vendorId === JABRA_VID)
+    || devs.find((d) => d.collections.some((c) => c.usagePage === 0x0b))
+    || devs[0];
+}
+
+// Bereits erlaubtes Headset wieder anbinden (ohne Auswahldialog).
 async function attachGrantedHeadset() {
   if (!navigator.hid) return;
   try {
     const devs = await navigator.hid.getDevices();
-    const dev = devs.find((d) => d.collections.some((c) => c.usagePage === 0x0b)) || devs[0];
+    headsetLog(`bekannte Geräte: ${devs.length ? devs.map((d) => `${d.productName} (VID ${d.vendorId.toString(16)})`).join(', ') : 'keine'}`);
+    const dev = pickHeadset(devs);
     if (dev) await useHeadset(dev);
   } catch (err) {
     headsetLog('getDevices: ' + err.message);
@@ -1202,8 +1215,16 @@ async function connectHeadset() {
     return;
   }
   try {
-    const devs = await navigator.hid.requestDevice({ filters: [{ usagePage: 0x0b }] });
-    if (devs.length) await useHeadset(devs[0]);
+    // Breit filtern (Jabra-Hersteller ODER Telefonie-HID), damit auch der Jabra-Dongle auftaucht.
+    const devs = await navigator.hid.requestDevice({ filters: [{ vendorId: JABRA_VID }, { usagePage: 0x0b }] });
+    headsetLog(`Auswahl: ${devs.length} Gerät(e): ${devs.map((d) => d.productName).join(', ') || '—'}`);
+    if (!devs.length) {
+      toast('Kein Headset gefunden. Ist das Jabra (Dongle) eingesteckt?', true);
+      updateHeadsetStatus();
+      return;
+    }
+    await useHeadset(pickHeadset(devs));
+    if (hidDevice) toast(`Headset verbunden: ${hidDevice.productName || 'Headset'}`);
   } catch (err) {
     headsetLog('requestDevice: ' + err.message);
     toast('Headset konnte nicht verbunden werden.', true);

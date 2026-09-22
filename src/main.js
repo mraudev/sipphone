@@ -70,7 +70,8 @@ function createWindow() {
   ses.on('select-hid-device', (event, details, callback) => {
     event.preventDefault();
     const list = details.deviceList || [];
-    const pick = list.find((d) => /jabra/i.test(d.name || d.productName || '')) || list[0];
+    console.log('[Headset] Auswahl:', list.map((d) => `${d.name || d.productName} (VID ${(d.vendorId || 0).toString(16)})`).join(', ') || 'keine');
+    const pick = list.find((d) => d.vendorId === 0x0b0e) || list.find((d) => /jabra/i.test(d.name || d.productName || '')) || list[0];
     callback(pick ? pick.deviceId : undefined);
   });
   // Das Fenster zeigt nur die eigene Oberfläche: keine neuen Fenster, keine Navigation woandershin.
