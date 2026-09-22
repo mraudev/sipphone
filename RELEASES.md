@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.2
+- **Richtiges Headset für die Rufannahme:** Bei mehreren angeschlossenen Jabras wird jetzt das HID-Gerät genutzt, das zum eingestellten Gesprächs-Gerät passt (gleiche USB-Kennung), statt einfach das erste Jabra. Wechselt automatisch mit, wenn das Gesprächs-Gerät geändert wird.
+
 ## 1.20.1
 - **Headset-Rufannahme robuster:** Die Geräteauswahl findet jetzt auch den Jabra-Dongle (Filter auf die Jabra-Hersteller-ID erweitert), mit Rückmeldung beim Verbinden. Zusätzliche Diagnose im Protokoll für Rufannahme und „Klingeln im Headset“ (welche Geräte genutzt werden).
 

@@ -1177,10 +1177,11 @@ function onHidInput(e) {
 
 async function useHeadset(dev) {
   try {
+    if (hidDevice && hidDevice !== dev) hidDevice.oninputreport = null; // altes Headset nicht mehr auswerten
     if (!dev.opened) await dev.open();
     dev.oninputreport = onHidInput;
     hidDevice = dev;
-    headsetLog(`verbunden: ${dev.productName || 'HID'} (VID ${dev.vendorId.toString(16)}/PID ${dev.productId.toString(16)})`);
+    headsetLog(`verbunden: ${devLabel(dev)}`);
   } catch (err) {
     headsetLog('open: ' + err.message);
   }
@@ -1188,42 +1189,69 @@ async function useHeadset(dev) {
 
 const JABRA_VID = 0x0b0e; // Hersteller-ID von GN/Jabra
 
-// Aus einer Geräteliste das passende Headset wählen: erst Jabra, dann ein Telefonie-HID.
-function pickHeadset(devs) {
-  return devs.find((d) => d.vendorId === JABRA_VID)
-    || devs.find((d) => d.collections.some((c) => c.usagePage === 0x0b))
-    || devs[0];
+const hx = (n) => (n || 0).toString(16).padStart(4, '0');
+const devLabel = (d) => `${d.productName || 'HID'} (${hx(d.vendorId)}:${hx(d.productId)})`;
+
+// USB-Kennung (VID:PID) des Gesprächs-Ausgabegeräts – Chrome hängt "(vvvv:pppp)" an den Gerätenamen.
+function speakerVidPid() {
+  const name = activeSpeaker() || '';
+  const dev = devices.find((d) => d.kind === 'audiooutput' && (d.label === name || d.label.startsWith(name)));
+  const m = /\(([0-9a-f]{4}):([0-9a-f]{4})\)/i.exec((dev && dev.label) || name);
+  return m ? { vid: parseInt(m[1], 16), pid: parseInt(m[2], 16) } : null;
 }
 
-// Bereits erlaubtes Headset wieder anbinden (ohne Auswahldialog).
-async function attachGrantedHeadset() {
-  if (!navigator.hid) return;
+// Aus einer HID-Liste das Gerät zur USB-Kennung t={vid,pid} wählen (das des Gesprächs-Geräts).
+// Bei mehreren Jabras lieber nichts nehmen als das falsche.
+function matchHeadset(devs, t) {
+  const isTel = (d) => d.collections.some((c) => c.usagePage === 0x0b);
+  if (!t) return devs.find(isTel) || null;
+  const exact = devs.find((d) => d.vendorId === t.vid && d.productId === t.pid);
+  if (exact) return exact;
+  const sameVidTel = devs.filter((d) => d.vendorId === t.vid && isTel(d));
+  return sameVidTel.length === 1 ? sameVidTel[0] : null;
+}
+
+function pickHeadset(devs) {
+  return matchHeadset(devs, speakerVidPid());
+}
+
+// Passendes Headset anbinden (ohne Auswahldialog). Aufruf bei Aktivierung, Start, Geräteänderung
+// und beim Öffnen der Einstellungen.
+async function syncHeadset() {
+  if (!navigator.hid || !headsetAnswer) return;
   try {
     const devs = await navigator.hid.getDevices();
-    headsetLog(`bekannte Geräte: ${devs.length ? devs.map((d) => `${d.productName} (VID ${d.vendorId.toString(16)})`).join(', ') : 'keine'}`);
+    headsetLog('HID-Geräte: ' + (devs.map(devLabel).join(', ') || 'keine'));
     const dev = pickHeadset(devs);
-    if (dev) await useHeadset(dev);
+    const t = speakerVidPid();
+    if (!dev) {
+      headsetLog(`kein HID passend zum Gesprächs-Gerät (${t ? hx(t.vid) + ':' + hx(t.pid) : 'unbekannt'}) gefunden`);
+    } else if (dev !== hidDevice) {
+      await useHeadset(dev);
+    }
   } catch (err) {
     headsetLog('getDevices: ' + err.message);
   }
+  updateHeadsetStatus();
 }
 
-// Headset auswählen (Nutzer-Geste über den Knopf in den Einstellungen).
+// Manuelles Verbinden (Nutzer-Geste): Auswahl erlauben, dann das zum Gesprächs-Gerät passende nehmen.
 async function connectHeadset() {
   if (!navigator.hid) {
     toast('Dieses System unterstützt kein WebHID.', true);
     return;
   }
   try {
-    // Breit filtern (Jabra-Hersteller ODER Telefonie-HID), damit auch der Jabra-Dongle auftaucht.
-    const devs = await navigator.hid.requestDevice({ filters: [{ vendorId: JABRA_VID }, { usagePage: 0x0b }] });
-    headsetLog(`Auswahl: ${devs.length} Gerät(e): ${devs.map((d) => d.productName).join(', ') || '—'}`);
-    if (!devs.length) {
-      toast('Kein Headset gefunden. Ist das Jabra (Dongle) eingesteckt?', true);
+    const chosen = await navigator.hid.requestDevice({ filters: [{ vendorId: JABRA_VID }, { usagePage: 0x0b }] });
+    const all = await navigator.hid.getDevices();
+    headsetLog('Auswahl -> HID-Geräte: ' + (all.map(devLabel).join(', ') || 'keine'));
+    const dev = pickHeadset(all) || pickHeadset(chosen) || chosen[0];
+    if (!dev) {
+      toast('Kein zum Gesprächs-Gerät passendes Headset gefunden.', true);
       updateHeadsetStatus();
       return;
     }
-    await useHeadset(pickHeadset(devs));
+    await useHeadset(dev);
     if (hidDevice) toast(`Headset verbunden: ${hidDevice.productName || 'Headset'}`);
   } catch (err) {
     headsetLog('requestDevice: ' + err.message);
@@ -1242,8 +1270,8 @@ function initHeadset() {
   navigator.hid.addEventListener('disconnect', (e) => {
     if (e.device === hidDevice) { hidDevice = null; updateHeadsetStatus(); }
   });
-  navigator.hid.addEventListener('connect', () => { if (headsetAnswer && !hidDevice) attachGrantedHeadset().then(updateHeadsetStatus); });
-  if (headsetAnswer) attachGrantedHeadset().then(updateHeadsetStatus);
+  navigator.hid.addEventListener('connect', () => { if (headsetAnswer) syncHeadset(); });
+  if (headsetAnswer) syncHeadset();
 }
 
 // --- Geräte (Namen stehen in config.json, Vorbelegung aus Linphone) ---
@@ -1280,6 +1308,7 @@ async function openSettings() {
   fill($('ringerSelect'), 'audiooutput', audioCfg.ringer);
   fill($('spkMicSelect'), 'audioinput', audioCfg.spkMicrophone);
   fill($('spkSpeakerSelect'), 'audiooutput', audioCfg.spkSpeaker);
+  syncHeadset(); // Gerätelabels sind jetzt frisch -> passendes Headset (VID:PID) anbinden
   updateHeadsetStatus();
   $('settings').showModal();
   startMeter();
@@ -1297,6 +1326,7 @@ function onDeviceChange() {
   window.phone.setAudio(audioCfg);
   applySinks();
   startMeter();
+  if (headsetAnswer) syncHeadset(); // Gesprächs-Gerät geändert -> passendes Headset neu wählen
   if (mic) {
     stopMic();
     updateAudio();
@@ -1531,7 +1561,7 @@ $('ringOnHeadset').onchange = () => {
 $('headsetAnswer').onchange = async () => {
   headsetAnswer = $('headsetAnswer').checked;
   window.phone.setOptions({ headsetAnswer });
-  if (headsetAnswer) await attachGrantedHeadset();
+  if (headsetAnswer) await syncHeadset();
   updateHeadsetStatus();
 };
 $('connectHeadset').onclick = connectHeadset;
