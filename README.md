@@ -1,6 +1,6 @@
 # SIP Phone
 
-Schlankes SIP-Softphone für Windows als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
+Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
 
 ![Icon](assets/icon.png)
 
@@ -34,6 +34,32 @@ Beim ersten Start:
 - **SmartScreen** warnt, weil die exe nicht signiert ist → *Weitere Informationen* → *Trotzdem ausführen*.
 - **Windows-Firewall** fragt nach Netzwerkzugriff → zulassen, sonst kommen keine eingehenden Anrufe an.
 
+### Linux
+
+Ebenfalls auf der [Release-Seite](https://github.com/mraudev/sipphone/releases), für x86-64:
+
+- **AppImage** (`SIP-Phone-<version>.AppImage`) – ohne Installation, aktualisiert sich selbst. Braucht `libfuse2` (Ubuntu 24.04: `libfuse2t64`):
+  ```bash
+  chmod +x SIP-Phone-*.AppImage
+  ./SIP-Phone-*.AppImage
+  ```
+- **Debian/Ubuntu-Paket** (`sip-phone_<version>_amd64.deb`) – mit Startmenü-Eintrag. Neue Versionen genauso installieren (automatische Updates gibt es nur beim AppImage). Startet das AppImage unter Ubuntu 24.04 wegen der Sandbox-Beschränkung nicht, das `.deb` nehmen:
+  ```bash
+  sudo apt install ./sip-phone_*_amd64.deb
+  ```
+
+Unterschiede zu Windows:
+
+- Kein Outlook-Import (der CSV-Import geht) und kein automatisches Abmelden bei gesperrtem Bildschirm.
+- Anruf-Benachrichtigungen ohne *Annehmen*/*Ablehnen*-Knöpfe – ein Klick öffnet das Fenster.
+- Tray-Symbol unter GNOME nur mit AppIndicator-Erweiterung. Ohne Tray-Symbol holt ein erneuter Start das Fenster zurück; Minimieren minimiert normal, Schließen lässt die App im Hintergrund weiterlaufen.
+- Zugangsdaten verschlüsselt der Schlüsselbund des Desktops (GNOME Keyring/KWallet); `config.json` ist nur für den eigenen Benutzer lesbar.
+- Die Rufannahme per Headset-Knopf braucht Lesezugriff auf das Headset (hidraw), z. B. für Jabra:
+  ```bash
+  echo 'SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b0e", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/70-jabra.rules
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+
 ## Entwicklung
 
 Voraussetzung: Node.js 22 oder neuer.
@@ -42,6 +68,7 @@ Voraussetzung: Node.js 22 oder neuer.
 npm install
 npm start          # App im Entwicklungsmodus starten
 npm run dist       # Setup und Portable-exe nach dist/ bauen
+npx electron-builder --linux   # unter Linux: AppImage und .deb nach dist/ bauen
 npm run icon       # assets/icon.png und icon.ico aus assets/icon.svg erzeugen
 ```
 
@@ -78,7 +105,7 @@ git push --follow-tags     # GitHub Actions baut und veröffentlicht das Release
 
 ## Einstellungen und Daten
 
-Alles liegt unter `%APPDATA%\SIP Phone\`:
+Alles liegt unter `%APPDATA%\SIP Phone\` (Linux: `~/.config/SIP Phone/`):
 
 - `config.json` – Konten, Audiogeräte, Klingelton. Passwörter und HA1-Hashes werden nur verschlüsselt gespeichert (Windows DPAPI).
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)

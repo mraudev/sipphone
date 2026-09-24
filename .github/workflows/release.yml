@@ -1,5 +1,6 @@
-# Baut bei einem Versions-Tag (z.B. v1.0.0) Setup + Portable-exe und veröffentlicht sie als GitHub-Release.
-# Die installierten Apps finden das Release über electron-updater (latest.yml) und aktualisieren sich.
+# Baut bei einem Versions-Tag (z.B. v1.0.0) Setup + Portable-exe und veröffentlicht sie als GitHub-Release;
+# danach werden die Linux-Pakete (AppImage + .deb) an dasselbe Release gehängt.
+# Die installierten Apps finden das Release über electron-updater (latest.yml / latest-linux.yml).
 name: Release
 
 on:
@@ -37,3 +38,24 @@ jobs:
           gh release create "$tag" \
             dist/SIP-Phone-Setup-*.exe dist/SIP-Phone-Setup-*.exe.blockmap dist/SIP-Phone-*-portable.exe dist/latest.yml \
             --title "$tag" --generate-notes --repo "$GITHUB_REPOSITORY"
+
+  # Linux-Pakete bauen und an das Release des Windows-Jobs hängen (erst danach, damit es genau ein Release gibt).
+  linux:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build
+        run: npx electron-builder --linux --publish never
+      - name: Linux-Dateien zum Release hinzufügen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            dist/SIP-Phone-*.AppImage dist/sip-phone_*.deb dist/latest-linux.yml \
+            --clobber --repo "$GITHUB_REPOSITORY"

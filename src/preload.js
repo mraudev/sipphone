@@ -2,6 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('phone', {
+  platform: process.platform, // 'win32' | 'linux' – für nur unter Windows verfügbare Funktionen
   getState: () => ipcRenderer.invoke('phone:state'),
   command: (msg) => ipcRenderer.invoke('phone:command', msg),
   sendAudio: (pcm) => ipcRenderer.send('phone:audio', pcm),

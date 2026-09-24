@@ -16,8 +16,10 @@ const { contactsToCsv } = require('./csvexport');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const APP_ORIGIN = 'app://phone';
-const ICON = path.join(__dirname, '..', 'assets', 'icon.ico');
+const IS_WIN = process.platform === 'win32';
 const ICON_PNG = path.join(__dirname, '..', 'assets', 'icon.png');
+// Fenster/Tray: Windows nimmt das .ico (mehrere Größen), Linux kann nur PNG.
+const ICON = IS_WIN ? path.join(__dirname, '..', 'assets', 'icon.ico') : ICON_PNG;
 const REG_TEXT = { registered: 'Verbunden', registering: 'Verbinde …', unregistering: 'Melde ab …', unregistered: 'Abgemeldet', failed: 'Nicht verbunden', locked: 'Abgemeldet (PC gesperrt)', elsewhere: 'An anderem Gerät angemeldet' };
 
 // Eigenes Schema statt file://, damit AudioWorklet & Co. in einem sicheren Kontext laufen.
@@ -80,7 +82,9 @@ function createWindow() {
     if (!url.startsWith(APP_ORIGIN)) e.preventDefault();
   });
   // Minimieren und Schließen legen die App ins Tray – sie bleibt erreichbar. Beenden über das Tray-Menü.
-  win.on('minimize', hideToTray);
+  // Unter Linux zeigt nicht jeder Desktop ein Tray-Symbol (z. B. GNOME ohne AppIndicator-Erweiterung):
+  // dort bleibt Minimieren ein normales Minimieren, damit das Fenster nicht unauffindbar verschwindet.
+  if (IS_WIN) win.on('minimize', hideToTray);
   win.on('close', (e) => {
     if (quitting) return;
     e.preventDefault();
@@ -111,7 +115,12 @@ function hideToTray() {
   win.hide();
   if (trayHintShown) return;
   trayHintShown = true;
-  tray.displayBalloon({ icon: ICON_PNG, title: 'SIP Phone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
+  if (IS_WIN) {
+    tray.displayBalloon({ icon: ICON_PNG, title: 'SIP Phone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
+  } else if (Notification.isSupported()) {
+    // Tray-Sprechblasen gibt es nur unter Windows; ohne sichtbares Tray-Symbol holt ein erneuter Start das Fenster zurück.
+    new Notification({ title: 'SIP Phone läuft weiter', body: 'Du bleibst erreichbar. Wieder öffnen über das Tray-Symbol oder durch erneutes Starten.', icon: ICON_PNG }).show();
+  }
 }
 
 function connectionSummary(accounts) {
@@ -299,6 +308,15 @@ function persist() {
 // Verschlüsselte Zugangsdaten entschlüsseln; noch im Klartext gespeicherte (ältere Versionen,
 // frischer Linphone-Import) sofort verschlüsselt neu speichern.
 function loadSecrets() {
+  // Linux: Verschlüsselung über den Schlüsselbund des Desktops (GNOME Keyring/KWallet). Ohne ihn
+  // verschleiert Electron nur ("basic_text") – im Protokoll vermerken, config.json ist dann nur per
+  // Dateirechte (nur der Benutzer) geschützt.
+  if (process.platform === 'linux') {
+    const backend = typeof safeStorage.getSelectedStorageBackend === 'function' ? safeStorage.getSelectedStorageBackend() : 'unbekannt';
+    const available = safeStorage.isEncryptionAvailable();
+    console.log(`Zugangsdaten-Speicher: ${available ? backend : 'keine Verschlüsselung verfügbar'}`);
+    if (!available || backend === 'basic_text') console.warn('Kein Schlüsselbund gefunden – Zugangsdaten sind nur durch die Dateirechte von config.json geschützt');
+  }
   if (!safeStorage.isEncryptionAvailable()) return;
   let plaintext = false;
   for (const account of cfg.accounts) {
@@ -439,6 +457,12 @@ function ringtoneData() {
 // Updates kommen aus den GitHub-Releases (build.publish in package.json). Nur in der installierten App.
 function setupUpdater() {
   if (!app.isPackaged) return;
+  // Linux: nur das AppImage aktualisiert sich selbst. Das .deb würde beim Beenden nach dem Admin-
+  // Passwort fragen – dort wird die neue Version per Paketinstallation eingespielt.
+  if (process.platform === 'linux' && !process.env.APPIMAGE) {
+    console.log('Automatische Updates nur für das AppImage (installiertes .deb: neue Version per Paket einspielen)');
+    return;
+  }
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.on('update-available', (info) => console.log(`Update ${info.version} verfügbar, lade herunter …`));

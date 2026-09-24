@@ -159,7 +159,9 @@ function loadConfig(dir) {
 }
 
 function saveConfig(cfg) {
-  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2) + '\n');
+  fs.writeFileSync(configFile, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+  // mode greift nur beim Anlegen; unter Linux/macOS auch eine vorhandene Datei auf "nur Benutzer" setzen.
+  if (process.platform !== 'win32') fs.chmodSync(configFile, 0o600);
 }
 
 module.exports = { loadConfig, saveConfig, normalizeConfig, ACCOUNT_DEFAULTS, parsePhonerLite };

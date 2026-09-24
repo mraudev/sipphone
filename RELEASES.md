@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.21.0
+- **Linux-Version:** Neben Windows gibt es jetzt ein **AppImage** (ohne Installation, aktualisiert sich selbst) und ein **Debian/Ubuntu-Paket** (`.deb`). Unter Linux entfallen der Outlook-Import und das Abmelden bei gesperrtem Bildschirm; Details in der README.
+
 ## 1.20.7
 - **Fehlerbehebungen aus einem Code-Review:**
   - Ein kaputtes/ungültiges RTP-Paket bricht die Audioverarbeitung nicht mehr ab, sondern wird verworfen.

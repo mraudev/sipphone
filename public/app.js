@@ -1,6 +1,7 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+const IS_WIN = window.phone.platform === 'win32';
 
 const REG_LABELS = {
   idle: 'Starte …',
@@ -783,7 +784,9 @@ function renderContacts() {
   $('contactsEmpty').hidden = matches.length > 0;
   $('contactsEmpty').textContent = contacts.length
     ? 'Keine Treffer'
-    : 'Noch keine Kontakte. Mit „Outlook“ importieren oder mit + anlegen.';
+    : IS_WIN
+      ? 'Noch keine Kontakte. Mit „Outlook“ importieren oder mit + anlegen.'
+      : 'Noch keine Kontakte. Mit „Import“ als CSV übernehmen oder mit + anlegen.';
 }
 
 // --- Kurzwahl (Besetztlampenfeld) ---
@@ -1584,6 +1587,12 @@ $('contactSearch').oninput = renderContacts;
 $('addContact').onclick = () => openContactDialog();
 $('importBtn').onclick = openImportDialog;
 $('importOutlook').onclick = () => runImport('outlook');
+// Nur unter Windows: Outlook-Import (COM über PowerShell) und Abmelden bei Bildschirmsperre
+// (Electron meldet die Sperre unter Linux nicht).
+if (!IS_WIN) {
+  $('importOutlook').hidden = true;
+  $('lockUnregister').closest('label').hidden = true;
+}
 $('importCsv').onclick = () => runImport('csv');
 $('exportCsv').onclick = exportCsv;
 $('addNumber').onclick = () => addNumberRow();
