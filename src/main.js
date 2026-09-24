@@ -591,7 +591,7 @@ if (!app.requestSingleInstanceLock()) {
       cfg.audio = { ...cfg.audio, ...audio };
       persist();
     });
-    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, headsetAnswer: cfg.headsetAnswer, theme: cfg.theme }));
+    ipcMain.handle('phone:getOptions', () => ({ lockUnregister: cfg.lockUnregister, showOnCall: cfg.showOnCall, micProcessing: cfg.micProcessing, hdVoice: cfg.hdVoice, ringOnHeadset: cfg.ringOnHeadset, headsetAnswer: cfg.headsetAnswer, ringtonePreset: cfg.ringtonePreset, theme: cfg.theme }));
     ipcMain.handle('phone:setOptions', (_e, options) => {
       for (const key of ['lockUnregister', 'showOnCall', 'micProcessing', 'hdVoice', 'ringOnHeadset', 'headsetAnswer']) {
         if (typeof options[key] === 'boolean') cfg[key] = options[key];
@@ -601,6 +601,8 @@ if (!app.requestSingleInstanceLock()) {
         cfg.theme = options.theme;
         nativeTheme.themeSource = options.theme;
       }
+      // Welche Töne es gibt, weiß nur die Oberfläche (RINGTONES) – hier nur das Format prüfen.
+      if (typeof options.ringtonePreset === 'string' && /^[a-z]{1,20}$/.test(options.ringtonePreset)) cfg.ringtonePreset = options.ringtonePreset;
       persist();
     });
     ipcMain.handle('phone:accounts', () => accountsView());

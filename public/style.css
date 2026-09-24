@@ -146,13 +146,21 @@ body { overflow: hidden; }
   padding: 4px; border-radius: 12px;
   background: var(--card); border: 1px solid var(--line);
 }
-.tab {
+.tab, .stab {
   padding: 7px 2px; border: 0; border-radius: 9px;
   background: transparent; color: var(--muted);
   font: inherit; font-weight: 600; font-size: 14px; cursor: pointer;
   white-space: nowrap;
 }
-.tab.active { background: var(--overlay-strong); color: var(--text); }
+.tab.active, .stab.active { background: var(--overlay-strong); color: var(--text); }
+/* Reiter im Einstellungsdialog (eigene Klasse, damit sie nicht die Hauptreiter umschalten) */
+.stabs { margin: 0 0 18px; }
+.spanel .account { margin-top: 0; }
+/* Knopfleiste bleibt sichtbar, auch wenn ein Reiter länger als das Fenster ist */
+#settings .dialog-actions {
+  position: sticky; bottom: -24px; margin: 18px 0 -24px; padding: 12px 0 24px;
+  background: var(--bg-2);
+}
 .badge {
   display: inline-grid; place-items: center;
   min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px;
@@ -436,8 +444,6 @@ dialog h2 { margin: 0 0 18px; font-size: 18px; }
 .field { margin-bottom: 16px; }
 dialog label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--muted); }
 .device-row { display: flex; gap: 8px; }
-.ringtone-row { flex-wrap: wrap; }
-.ringtone-name { flex: 1 1 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 dialog select {
   display: block; flex: 1; min-width: 0; width: 100%; padding: 9px 10px;
   border: 1px solid var(--line); border-radius: 10px;

@@ -40,7 +40,8 @@ const DEFAULTS = {
   hdVoice: true, // G.722 (Breitband) bevorzugt anbieten; fällt automatisch auf G.711 zurück
   theme: 'system', // Darstellung: 'system' | 'light' | 'dark'
   ringOnHeadset: false, // bei eingehendem Anruf zusätzlich auf dem Gesprächsgerät (Headset) klingeln
-  headsetAnswer: false, // Anruf per Mute-Knopf am Headset (Jabra, WebHID) annehmen
+  headsetAnswer: false, // Anruf per Rufannahme-Knopf am Headset (WebHID) annehmen
+  ringtonePreset: 'standard', // eingebauter Klingelton (Schlüssel in RINGTONES, public/app.js)
   favorites: [], // Kurzwahl: [{ name, number }] – Status per Besetztlampenfeld (BLF), sofern die Anlage es liefert
 };
 

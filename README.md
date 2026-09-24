@@ -12,7 +12,8 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar
 - **Freisprech-Profil** mit eigenem Mikrofon und Lautsprecher: im Gespräch per Knopf umschalten (z. B. vom Headset auf Laptop-Lautsprecher, wenn jemand dazukommt); dazu ein dauerhaft eingeblendeter Lautstärkeregler
-- **Eigener Klingelton** (WAV, MP3, OGG, M4A, FLAC); auf Wunsch klingelt es zusätzlich im Headset (gleichzeitig auf Klingel- und Gesprächsgerät)
+- **Klingelton wählbar**: Standard-Dreiklang, zehn weitere eingebaute Töne (einfach und mehrstimmig) oder eine eigene Datei (WAV, MP3, OGG, M4A, FLAC); auf Wunsch klingelt es zusätzlich im Headset (gleichzeitig auf Klingel- und Gesprächsgerät)
+- **Einstellungen in Reitern** (Audio, Anrufe, Konten, Allgemein); ein Klick auf die Statuszeile öffnet direkt die Konten
 - **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage). Nummern aus dem Telefonbuch lassen sich per Stern direkt auf die Kurzwahl legen
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf; unbekannte Anrufer lassen sich mit einem Klick als Kontakt ins Telefonbuch übernehmen
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
@@ -21,7 +22,7 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
 - **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her. Der Knopf mit dem Aktualisieren-Symbol oben rechts baut die Verbindung jederzeit von Hand neu auf
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
-- **Annehmen per Headset-Knopf** (optional): Während es klingelt, signalisiert die App dem Headset den Anruf und ein Druck auf den Rufannahme-/Gesprächsknopf nimmt an; im Gespräch legt derselbe Knopf auf. Nutzt die Standard-HID-Anrufsteuerung (getestet mit Jabra); einmalig in den Einstellungen *Headset verbinden*
+- **Annehmen per Headset-Knopf** (optional): Während es klingelt, signalisiert die App dem Headset den Anruf und ein Druck auf den Rufannahme-/Gesprächsknopf nimmt an; im Gespräch legt derselbe Knopf auf. Nutzt die Standard-HID-Anrufsteuerung (getestet mit Jabra); einmalig unter *Einstellungen → Anrufe* *Headset verbinden*. Bei Jabra muss dafür in Jabra Direct die Softphone-Integration eingeschaltet sein
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
 - **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim Einrichten lässt sich ein Konto aus einer PhonerLite-`sipper.ini` übernehmen (alle Felder außer dem Passwort, das dort verschlüsselt liegt)
 
@@ -111,7 +112,7 @@ Alles liegt unter `%APPDATA%\SIP Phone\` (Linux: `~/.config/SIP Phone/`):
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)
 - `contacts.json` – Telefonbuch
 - `ringtone.*` – Kopie des eigenen Klingeltons
-- `sipphone.log` – Protokoll für die Fehlersuche (ohne Zugangsdaten und Gesprächsinhalte). Am Gesprächsende steht darin eine RTP-Statistik: gesendete Sprach-/Stillepakete, längste Mikrofonpause und – sofern die Anlage RTCP schickt – was sie über den eigenen Sendestrom meldet (Paketverlust, Jitter). Über *Einstellungen → Protokoll → Anzeigen* im Explorer zu öffnen.
+- `sipphone.log` – Protokoll für die Fehlersuche (ohne Zugangsdaten und Gesprächsinhalte). Am Gesprächsende steht darin eine RTP-Statistik: gesendete Sprach-/Stillepakete, längste Mikrofonpause und – sofern die Anlage RTCP schickt – was sie über den eigenen Sendestrom meldet (Paketverlust, Jitter). Über *Einstellungen → Allgemein → Protokoll → Anzeigen* im Explorer zu öffnen.
 
 Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto einrichten*.
 

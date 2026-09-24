@@ -25,6 +25,7 @@ let contacts = []; // Telefonbuch; jede Nummer hat zusätzlich "dial" (wählbare
 let activeTab = 'dialer';
 let editingContactId = null;
 let ringtone = null; // { name, buffer } – eigener Klingelton, null = eingebaute Melodie
+let ringtonePreset = 'standard'; // gewählter eingebauter Klingelton (Schlüssel in RINGTONES)
 let accounts = []; // Kontodaten fürs Formular (ohne Zugangsdaten)
 let editingAccount = false;
 let editingAccountId = null;
@@ -1074,51 +1075,152 @@ function stopMic() {
 }
 
 // Töne: Klingelton (eingehend) auf dem Klingel-Gerät, Freizeichen (ausgehend) im Headset.
-const TONES = {
-  ring: { ctx: 'ringCtx', period: 2.4, gain: 0.25, notes: [[784, 0, 0.14], [988, 0.16, 0.14], [1175, 0.32, 0.22], [784, 0.8, 0.14], [988, 0.96, 0.14], [1175, 1.12, 0.22]] },
-  ringback: { ctx: 'ctx', period: 5, gain: 0.12, notes: [[425, 0, 1]] },
+// Ein Ton besteht aus Stimmen und wiederholt sich alle `period` Sekunden. Stimme: Wellenform, Lautstärke,
+// Einschwingzeit, dann ausklingend (`decay`) oder gehalten mit Ausklang (`release`); optional Obertöne
+// ([Verhältnis, Anteil]), Chor (Verstimmung in Cent) und Filter. Noten: [Hz oder Notenname, Start s, Dauer s].
+const RINGBACK = { period: 5, voices: [{ wave: 'sine', attack: 0.015, release: 0.03, gain: 0.12, notes: [[425, 0, 1]] }] };
+const RINGTONES = {
+  standard: { name: 'Standard (Dreiklang)', period: 2.4, voices: [
+    { wave: 'sine', attack: 0.015, release: 0.03, gain: 0.25, notes: [[784, 0, 0.14], [988, 0.16, 0.14], [1175, 0.32, 0.22], [784, 0.8, 0.14], [988, 0.96, 0.14], [1175, 1.12, 0.22]] }] },
+  marimba: { name: 'Marimba', group: 'Einfach', period: 2.8, voices: [
+    { wave: 'sine', attack: 0.005, decay: 0.35, gain: 0.28, partials: [[4, 0.25], [10, 0.05]], notes: [[392, 0, 0.5], [523.25, 0.15, 0.5], [659.25, 0.3, 0.5], [783.99, 0.45, 0.5], [659.25, 0.75, 0.5], [783.99, 0.9, 0.5]] }] },
+  kristall: { name: 'Kristall', group: 'Einfach', period: 3, voices: [
+    { wave: 'sine', attack: 0.004, decay: 1.1, gain: 0.22, partials: [[2, 0.35], [3, 0.12], [4.2, 0.06]], notes: [[1318.51, 0, 1.5], [1046.5, 0.45, 1.5]] }] },
+  puls: { name: 'Sanfter Puls', group: 'Einfach', period: 3, voices: [
+    { wave: 'triangle', attack: 0.02, release: 0.06, gain: 0.18, notes: [[880, 0, 0.12], [1108.73, 0, 0.12], [880, 0.2, 0.12], [1108.73, 0.2, 0.12], [880, 0.6, 0.12], [1108.73, 0.6, 0.12], [880, 0.8, 0.12], [1108.73, 0.8, 0.12]] }] },
+  harfe: { name: 'Harfe', group: 'Einfach', period: 3.2, voices: [
+    { wave: 'triangle', attack: 0.003, decay: 0.9, gain: 0.16, partials: [[2, 0.15]], notes: [[523.25, 0, 1.3], [659.25, 0.09, 1.3], [783.99, 0.18, 1.3], [987.77, 0.27, 1.3], [1046.5, 0.36, 1.3]] }] },
+  morgen: { name: 'Morgen', group: 'Einfach', period: 3.2, voices: [
+    { wave: 'sine', attack: 0.04, release: 0.12, gain: 0.2, partials: [[2, 0.2], [3, 0.05]], notes: [[587.33, 0, 0.22], [659.25, 0.25, 0.22], [783.99, 0.5, 0.22], [880, 0.75, 0.35], [783.99, 1.15, 0.5]] }] },
+  sonnenaufgang: { name: 'Sonnenaufgang', group: 'Mehrstimmig', period: 3.4, voices: [
+    { wave: 'sine', attack: 0.005, decay: 0.45, gain: 0.26, partials: [[4, 0.2], [10, 0.04]], notes: [['E5', 0, 0.5], ['G5', 0.25, 0.5], ['C6', 0.5, 0.5], ['B5', 0.75, 0.5], ['G5', 1, 0.5], ['A5', 1.25, 0.5], ['F5', 1.5, 0.5], ['G5', 1.75, 0.8]] },
+    { wave: 'triangle', attack: 0.25, release: 0.4, gain: 0.07, partials: [[2, 0.2]], detune: [-6, 6], notes: [['C4', 0, 1], ['E4', 0, 1], ['G4', 0, 1], ['F4', 1, 0.6], ['A4', 1, 0.6], ['C5', 1, 0.6], ['G4', 1.5, 1.1], ['B4', 1.5, 1.1], ['D5', 1.5, 1.1]] },
+    { wave: 'sine', attack: 0.01, decay: 0.6, gain: 0.22, partials: [[2, 0.3]], notes: [['C3', 0, 0.9], ['F2', 1, 0.6], ['G2', 1.5, 1]] }] },
+  glockenspiel: { name: 'Glockenspiel mit Echo', group: 'Mehrstimmig', period: 3.4, delay: { time: 0.21, feedback: 0.35, mix: 0.28 }, voices: [
+    { wave: 'sine', attack: 0.003, decay: 0.8, gain: 0.18, partials: [[2, 0.3], [3, 0.1], [4.16, 0.05]], notes: [['A5', 0, 1], ['C#6', 0.18, 1], ['E6', 0.36, 1], ['F#6', 0.54, 1], ['E6', 0.9, 1], ['C#6', 1.08, 1], ['B5', 1.26, 1], ['A5', 1.44, 1.2]] },
+    { wave: 'sine', attack: 0.003, decay: 1.4, gain: 0.16, partials: [[2, 0.25], [2.76, 0.1]], notes: [['A4', 0, 1.8], ['E4', 0.9, 1.8]] }] },
+  lounge: { name: 'Lounge', group: 'Mehrstimmig', period: 3.8, voices: [
+    { wave: 'sine', attack: 0.006, decay: 1, gain: 0.09, partials: [[2, 0.25], [3, 0.08], [4, 0.04]], notes: [['D4', 0, 1.2], ['F4', 0.02, 1.2], ['A4', 0.04, 1.2], ['C5', 0.06, 1.2], ['E5', 0.08, 1.2], ['F4', 0.9, 1.2], ['B4', 0.92, 1.2], ['D5', 0.94, 1.2], ['E5', 0.96, 1.2], ['E4', 1.8, 1.6], ['G4', 1.82, 1.6], ['B4', 1.84, 1.6], ['D5', 1.86, 1.6]] },
+    { wave: 'sine', attack: 0.005, decay: 0.5, gain: 0.12, partials: [[4, 0.1]], notes: [['A5', 0.3, 0.4], ['G5', 0.6, 0.4], ['F5', 1.2, 0.4], ['E5', 1.5, 0.4], ['D5', 2.1, 0.4], ['E5', 2.4, 0.8]] },
+    { wave: 'sine', attack: 0.01, decay: 0.9, gain: 0.24, partials: [[2, 0.2]], notes: [['D3', 0, 0.9], ['G2', 0.9, 0.9], ['C3', 1.8, 1.4]] }] },
+  arcade: { name: 'Arcade', group: 'Mehrstimmig', period: 3, voices: [
+    { wave: 'square', attack: 0.002, release: 0.02, gain: 0.05, filter: { type: 'lowpass', freq: 3500 }, notes: [['A4', 0, 0.09], ['C5', 0.1, 0.09], ['E5', 0.2, 0.09], ['A5', 0.3, 0.09], ['G5', 0.4, 0.09], ['E5', 0.5, 0.09], ['C5', 0.6, 0.09], ['E5', 0.7, 0.09], ['F5', 0.8, 0.09], ['A5', 0.9, 0.09], ['C6', 1, 0.09], ['A5', 1.1, 0.09], ['G5', 1.2, 0.09], ['B5', 1.3, 0.09], ['D6', 1.4, 0.09], ['B5', 1.5, 0.09], ['A5', 1.6, 0.4]] },
+    { wave: 'triangle', attack: 0.003, release: 0.03, gain: 0.2, notes: [['A2', 0, 0.18], ['A3', 0.2, 0.18], ['C3', 0.4, 0.18], ['C4', 0.6, 0.18], ['F2', 0.8, 0.18], ['F3', 1, 0.18], ['G2', 1.2, 0.18], ['G3', 1.4, 0.18], ['A2', 1.6, 0.4]] }] },
+  kino: { name: 'Kino', group: 'Mehrstimmig', period: 4.2, voices: [
+    { wave: 'sawtooth', attack: 0.4, release: 0.6, gain: 0.045, detune: [-8, 0, 8], filter: { type: 'lowpass', freq: 1400 }, notes: [['A3', 0, 1], ['C4', 0, 1], ['E4', 0, 1], ['F3', 0.9, 1], ['A3', 0.9, 1], ['C4', 0.9, 1], ['C4', 1.8, 1], ['E4', 1.8, 1], ['G4', 1.8, 1], ['G3', 2.7, 1.2], ['B3', 2.7, 1.2], ['D4', 2.7, 1.2]] },
+    { wave: 'triangle', attack: 0.003, decay: 0.9, gain: 0.12, partials: [[2, 0.15], [3, 0.05]], notes: [['A4', 0, 1], ['C5', 0.12, 1], ['E5', 0.24, 1], ['A5', 0.36, 1], ['F4', 0.9, 1], ['A4', 1.02, 1], ['C5', 1.14, 1], ['F5', 1.26, 1], ['C5', 1.8, 1], ['E5', 1.92, 1], ['G5', 2.04, 1], ['C6', 2.16, 1], ['G4', 2.7, 1], ['B4', 2.82, 1], ['D5', 2.94, 1], ['G5', 3.06, 1.2]] },
+    { wave: 'sine', attack: 0.01, decay: 1, gain: 0.18, partials: [[2, 0.2]], notes: [['A2', 0, 0.9], ['F2', 0.9, 0.9], ['C3', 1.8, 0.9], ['G2', 2.7, 1.2]] }] },
 };
-let tone = null; // { kind, timer, oscillators }
+let tone = null; // { kind, timers, oscillators, outs }
+
+const NOTE_STEPS = { C: -9, D: -7, E: -5, F: -4, G: -2, A: 0, B: 2 };
+function noteFreq(note) {
+  if (typeof note === 'number') return note;
+  const m = /^([A-G])(#|b)?(\d)$/.exec(note);
+  const step = NOTE_STEPS[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (m[3] - 4) * 12;
+  return 440 * 2 ** (step / 12);
+}
+
+function ringSpec() {
+  return RINGTONES[ringtonePreset] || RINGTONES.standard;
+}
 
 // Klingelton (eingehend) wahlweise gleichzeitig auf Klingel-Gerät und Gesprächsgerät (Headset).
 function toneContexts(kind) {
-  if (kind !== 'ring') return [audio[TONES[kind].ctx]];
+  if (kind !== 'ring') return [audio.ctx];
   return ringOnHeadset && audio.ctx !== audio.ringCtx ? [audio.ringCtx, audio.ctx] : [audio.ringCtx];
+}
+
+// Eingang für die Stimmen: einstimmige Töne direkt, mehrstimmige über einen Kompressor (gegen Übersteuern),
+// auf Wunsch mit Echo.
+function toneInput(ctx, spec, out) {
+  if (spec.voices.length < 2 && !spec.delay) return out;
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18;
+  comp.ratio.value = 4;
+  const level = ctx.createGain();
+  level.gain.value = 0.9;
+  comp.connect(level).connect(out);
+  const mix = ctx.createGain();
+  mix.connect(comp);
+  if (spec.delay) {
+    const echo = ctx.createDelay(1);
+    echo.delayTime.value = spec.delay.time;
+    const feedback = ctx.createGain();
+    feedback.gain.value = spec.delay.feedback;
+    const wet = ctx.createGain();
+    wet.gain.value = spec.delay.mix;
+    mix.connect(echo);
+    echo.connect(feedback).connect(echo);
+    echo.connect(wet).connect(comp);
+  }
+  return mix;
+}
+
+function voiceBus(ctx, voice, input) {
+  if (!voice.filter) return input;
+  const filter = ctx.createBiquadFilter();
+  filter.type = voice.filter.type;
+  filter.frequency.value = voice.filter.freq;
+  filter.connect(input);
+  return filter;
+}
+
+function playNote(ctx, bus, voice, freq, at, dur) {
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0, at);
+  env.gain.linearRampToValueAtTime(voice.gain, at + voice.attack);
+  if (voice.decay) {
+    env.gain.setTargetAtTime(0, at + voice.attack, voice.decay / 3);
+  } else {
+    env.gain.setValueAtTime(voice.gain, Math.max(at + voice.attack, at + dur - voice.release));
+    env.gain.linearRampToValueAtTime(0, at + dur);
+  }
+  env.connect(bus);
+  const detunes = voice.detune || [0];
+  for (const [ratio, amp] of [[1, 1], ...(voice.partials || [])]) {
+    for (const cents of detunes) {
+      const osc = ctx.createOscillator();
+      osc.type = voice.wave;
+      osc.frequency.value = freq * ratio;
+      osc.detune.value = cents;
+      const level = ctx.createGain();
+      level.gain.value = amp / detunes.length;
+      osc.connect(level).connect(env);
+      osc.start(at);
+      osc.stop(at + dur + (voice.release || 0) + 0.05);
+      tone.oscillators.push(osc);
+      osc.onended = () => tone && (tone.oscillators = tone.oscillators.filter((o) => o !== osc));
+    }
+  }
 }
 
 function playTone(kind) {
   if (tone && tone.kind === kind) return;
   stopTone();
   if (!audio) return;
-  const spec = TONES[kind];
-  tone = { kind, oscillators: [], timers: [] };
+  const spec = kind === 'ring' ? ringSpec() : RINGBACK;
+  tone = { kind, oscillators: [], timers: [], outs: [] };
   for (const ctx of toneContexts(kind)) {
+    const out = ctx.createGain();
+    out.connect(ctx.destination);
+    tone.outs.push(out);
     if (kind === 'ring' && ringtone) {
       const source = ctx.createBufferSource();
       source.buffer = ringtone.buffer;
       source.loop = true;
-      source.connect(ctx.destination);
+      source.connect(out);
       source.start();
       tone.oscillators.push(source);
       continue;
     }
+    const input = toneInput(ctx, spec, out);
+    const buses = spec.voices.map((v) => voiceBus(ctx, v, input));
     const burst = () => {
       const t0 = ctx.currentTime + 0.05;
-      for (const [freq, start, dur] of spec.notes) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        const at = t0 + start;
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, at);
-        gain.gain.linearRampToValueAtTime(spec.gain, at + 0.015);
-        gain.gain.setValueAtTime(spec.gain, at + dur - 0.03);
-        gain.gain.linearRampToValueAtTime(0, at + dur);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(at);
-        osc.stop(at + dur + 0.02);
-        tone.oscillators.push(osc);
-        osc.onended = () => tone && (tone.oscillators = tone.oscillators.filter((o) => o !== osc));
-      }
+      spec.voices.forEach((v, i) => {
+        for (const [note, start, dur] of v.notes) playNote(ctx, buses[i], v, noteFreq(note), t0 + start, dur);
+      });
     };
     burst();
     tone.timers.push(setInterval(burst, spec.period * 1000));
@@ -1133,6 +1235,7 @@ function stopTone() {
       osc.stop();
     } catch {}
   }
+  for (const out of tone.outs) out.disconnect(); // schneidet auch ein Echo ab
   tone = null;
 }
 
@@ -1373,7 +1476,14 @@ function deviceId(kind, name) {
   return d ? d.deviceId : '';
 }
 
-async function openSettings() {
+// Reiter im Einstellungsdialog umschalten; ohne Angabe bleibt der zuletzt gewählte offen.
+function setSettingsTab(id) {
+  for (const b of document.querySelectorAll('.stab')) b.classList.toggle('active', b.dataset.stab === id);
+  for (const p of document.querySelectorAll('.spanel')) p.hidden = p.dataset.stab !== id;
+}
+
+async function openSettings(tab) {
+  if (tab) setSettingsTab(tab);
   await refreshDevices();
   const fill = (select, kind, name) => {
     select.innerHTML = '';
@@ -1423,8 +1533,39 @@ async function loadRingtone() {
       toast(`Klingelton „${r.name}“ kann nicht abgespielt werden`, true);
     }
   }
-  $('ringtoneName').textContent = ringtone ? ringtone.name : 'Standard';
-  $('ringtoneReset').hidden = !ringtone;
+  renderRingtoneSelect();
+}
+
+// Auswahl „Klingelton – Ton“: eingebaute Töne (nach Gruppe) und ggf. die eigene Datei.
+function renderRingtoneSelect() {
+  const select = $('ringtoneSelect');
+  select.replaceChildren();
+  const groups = {};
+  for (const [id, t] of Object.entries(RINGTONES)) {
+    const option = new Option(t.name, id);
+    if (!t.group) {
+      select.append(option);
+      continue;
+    }
+    if (!groups[t.group]) {
+      groups[t.group] = document.createElement('optgroup');
+      groups[t.group].label = t.group;
+      select.append(groups[t.group]);
+    }
+    groups[t.group].append(option);
+  }
+  if (ringtone) select.append(new Option(`Eigene Datei: ${ringtone.name}`, 'custom'));
+  select.value = ringtone ? 'custom' : RINGTONES[ringtonePreset] ? ringtonePreset : 'standard';
+}
+
+async function chooseRingtonePreset() {
+  const id = $('ringtoneSelect').value;
+  if (id === 'custom') return;
+  ringtonePreset = id;
+  window.phone.setOptions({ ringtonePreset: id });
+  if (ringtone) await resetRingtone(); // ein eingebauter Ton ersetzt die eigene Datei
+  if (tone && tone.kind === 'ring') stopTone();
+  testTone('ring');
 }
 
 async function chooseRingtone() {
@@ -1455,7 +1596,9 @@ function testTone(kind) {
   if (state.call) return;
   playTone(kind);
   clearTimeout(testTimer);
-  testTimer = setTimeout(() => !state.call && stopTone(), 2500);
+  // Eingebaute Klingeltöne einmal ganz vorspielen (die längeren dauern gut 4 s)
+  const ms = kind === 'ring' && !ringtone ? Math.max(2500, ringSpec().period * 1000) : 2500;
+  testTimer = setTimeout(() => !state.call && stopTone(), ms);
 }
 
 // Pegelanzeige für das gewählte Mikrofon, solange die Einstellungen offen sind.
@@ -1609,8 +1752,8 @@ $('lineSelect').onchange = () => {
 };
 $('clearHistory').onclick = () => confirm('Verlauf wirklich löschen?') && window.phone.clearHistory();
 window.addEventListener('focus', () => activeTab === 'history' && markHistorySeen());
-$('regStatus').onclick = openSettings;
-$('settingsBtn').onclick = openSettings;
+$('regStatus').onclick = () => openSettings('accounts'); // Statuszeile -> direkt zu den Konten
+$('settingsBtn').onclick = () => openSettings();
 $('reconnectBtn').onclick = () => {
   const btn = $('reconnectBtn');
   btn.classList.remove('spinning');
@@ -1658,7 +1801,8 @@ for (const id of ['micSelect', 'speakerSelect', 'ringerSelect', 'spkMicSelect', 
 $('testSpeaker').onclick = () => testTone('ringback');
 $('testRinger').onclick = () => testTone('ring');
 $('ringtoneChoose').onclick = chooseRingtone;
-$('ringtoneReset').onclick = resetRingtone;
+$('ringtoneSelect').onchange = chooseRingtonePreset;
+for (const b of document.querySelectorAll('.stab')) b.onclick = () => setSettingsTab(b.dataset.stab);
 $('settings').addEventListener('close', stopMeter);
 // Headset an-/abgesteckt: gespeicherte Auswahl neu zuordnen
 navigator.mediaDevices.addEventListener('devicechange', async () => {
@@ -1715,6 +1859,8 @@ window.phone.onAudioFormat((fmt) => {
     $('ringOnHeadset').checked = ringOnHeadset;
     headsetAnswer = options.headsetAnswer;
     $('headsetAnswer').checked = headsetAnswer;
+    ringtonePreset = options.ringtonePreset || 'standard';
+    renderRingtoneSelect();
     $('themeSelect').value = options.theme || 'system';
     await refreshDevices();
     await initAudio();

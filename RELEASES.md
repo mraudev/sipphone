@@ -2,6 +2,11 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.22.0
+- **Klingelton auswählbar:** Neben dem Standard-Dreiklang stehen zehn weitere eingebaute Töne zur Wahl – fünf einfache (Marimba, Kristall, Sanfter Puls, Harfe, Morgen) und fünf mehrstimmige (Sonnenaufgang, Glockenspiel mit Echo, Lounge, Arcade, Kino). Eine eigene Datei geht weiterhin. Beim Auswählen wird der Ton einmal vorgespielt.
+- **Einstellungen in Reitern:** Audio, Anrufe, Konten und Allgemein statt einer langen Liste; ein Klick auf die Statuszeile öffnet direkt die Konten. Die Knopfleiste bleibt immer sichtbar.
+- Hinweistext zur Headset-Rufannahme korrigiert (Rufannahme-Knopf statt Mute-Knopf, Hinweis auf die Jabra-Softphone-Integration).
+
 ## 1.21.1
 - **Protokoll aufgeräumt:** Die Diagnose-Einträge zur Headset-Anbindung (jeder Tastendruck, Gerätelisten) sind wieder entfernt; es werden nur noch echte Fehler protokolliert.
 
