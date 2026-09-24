@@ -225,7 +225,9 @@ class SipUA extends EventEmitter {
   }
 
   async stop() {
-    if (this.call) this.hangup();
+    // Beide Gespräche beenden (auch ein Rückfragegespräch): endCall macht die Rückfrage zum
+    // Hauptgespräch, deshalb so lange auflegen, bis keins mehr offen ist.
+    while (this.call) this.hangup();
     this.stopWatch();
     clearInterval(this.keepalive);
     clearTimeout(this.regTimer);
@@ -349,9 +351,11 @@ class SipUA extends EventEmitter {
     const key = `${branch}:${method}`;
     const tx = this.tx.get(key);
     if (!tx) {
-      // Wiederholtes 200 OK auf INVITE -> ACK erneut senden
-      if (method === 'INVITE' && res.status < 300 && this.lastAck && header(res, 'call-id') === this.lastAck.callId) {
-        this.transmit(this.lastAck.data);
+      // Wiederholtes 200 OK auf INVITE -> ACK des passenden Dialogs erneut senden (je Gespräch getrennt).
+      if (method === 'INVITE' && res.status < 300) {
+        const id = header(res, 'call-id');
+        const call = [this.call, this.consult].find((c) => c && c.callId === id && c.ackData);
+        if (call) this.transmit(call.ackData);
       }
       return;
     }
@@ -804,7 +808,7 @@ class SipUA extends EventEmitter {
       route: call.routeSet,
     });
     const data = serialize(`ACK ${ack.uri} SIP/2.0`, ack.headers);
-    this.lastAck = { callId: call.callId, data };
+    call.ackData = data;
     this.transmit(data);
   }
 
@@ -1009,7 +1013,7 @@ class SipUA extends EventEmitter {
       route: call.routeSet,
     });
     const data = serialize(`ACK ${ack.uri} SIP/2.0`, ack.headers);
-    this.lastAck = { callId: call.callId, data };
+    call.ackData = data;
     this.transmit(data);
   }
 

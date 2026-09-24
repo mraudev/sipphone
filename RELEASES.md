@@ -2,6 +2,13 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.20.7
+- **Fehlerbehebungen aus einem Code-Review:**
+  - Ein kaputtes/ungültiges RTP-Paket bricht die Audioverarbeitung nicht mehr ab, sondern wird verworfen.
+  - Beim Beenden während einer Rückfrage werden jetzt **beide** Gespräche sauber mit BYE beendet (vorher blieb die Rückfrage offen).
+  - Die ACK-Wiederholung wird je Gespräch getrennt gespeichert – zwei gleichzeitige Gespräche stören sich nicht mehr (verhindert seltene Abbrüche bei Paketverlust).
+  - CSV-Export: Bezeichnungen wie „Haupt“ gehen beim Wiederimport nicht mehr verloren (Spaltennamen sind jetzt import-kompatibel).
+
 ## 1.20.6
 - **Headset-Annahme auch ohne aktive Softphone-Integration:** Sendet das Headset den Anruf-Knopf im Ruhezustand als Medientaste (statt als Hook Switch), nimmt die App beim Klingeln trotzdem an. Der Standard-Weg (Hook Switch/Ring) bleibt zusätzlich aktiv.
 

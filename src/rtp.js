@@ -312,15 +312,24 @@ class RtpSession extends EventEmitter {
     this.remoteSsrc = buf.readUInt32BE(8);
     this.countReceived(buf.readUInt16BE(2), buf.readUInt32BE(4), (buf[1] & 0x80) !== 0);
     let pcm;
-    if (this.codec.name === 'OPUS') {
-      const out = this.opusDec.decode(buf.subarray(offset, end)); // variable -> 960 Samples (48 kHz)
-      pcm = new Int16Array(out.buffer, out.byteOffset, out.length >> 1);
-    } else if (this.codec.name === 'G722') {
-      pcm = this.g722dec.decode(buf.subarray(offset, end)); // 160 Byte -> 320 Samples
-    } else {
-      const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
-      pcm = new Int16Array(end - offset);
-      for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
+    try {
+      if (this.codec.name === 'OPUS') {
+        const out = this.opusDec.decode(buf.subarray(offset, end)); // variable -> 960 Samples (48 kHz)
+        pcm = new Int16Array(out.buffer, out.byteOffset, out.length >> 1);
+      } else if (this.codec.name === 'G722') {
+        pcm = this.g722dec.decode(buf.subarray(offset, end)); // 160 Byte -> 320 Samples
+      } else {
+        const table = this.codec.name === 'PCMU' ? ULAW_TABLE : ALAW_TABLE;
+        pcm = new Int16Array(end - offset);
+        for (let i = 0; i < pcm.length; i++) pcm[i] = table[buf[offset + i]];
+      }
+    } catch (err) {
+      // Ein kaputtes/ungültiges Paket verwerfen, statt die Audioverarbeitung abzubrechen.
+      if (!this.decodeErrorLogged) {
+        console.warn('RTP-Paket nicht dekodierbar, verworfen:', err.message);
+        this.decodeErrorLogged = true;
+      }
+      return;
     }
     this.emit('audio', pcm);
   }
