@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.22.1
+- **Einstellungen optisch überarbeitet:** schmaler, abgerundeter Scrollbalken passend zum Design (hell und dunkel, ohne Pfeile); die Headset-Zeile ist am Text der Option ausgerichtet, mit Statuspunkt und kleinem „Verbinden …“-Knopf; die Konten erscheinen als Liste mit Trennlinien und „+ Konto hinzufügen“ als letzte Zeile, passend dazu die Box unter „Allgemein“.
+
 ## 1.22.0
 - **Klingelton auswählbar:** Neben dem Standard-Dreiklang stehen zehn weitere eingebaute Töne zur Wahl – fünf einfache (Marimba, Kristall, Sanfter Puls, Harfe, Morgen) und fünf mehrstimmige (Sonnenaufgang, Glockenspiel mit Echo, Lounge, Arcade, Kino). Eine eigene Datei geht weiterhin. Beim Auswählen wird der Ton einmal vorgespielt.
 - **Einstellungen in Reitern:** Audio, Anrufe, Konten und Allgemein statt einer langen Liste; ein Klick auf die Statuszeile öffnet direkt die Konten. Die Knopfleiste bleibt immer sichtbar.

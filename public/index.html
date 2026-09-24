@@ -277,16 +277,19 @@
           <input type="checkbox" id="headsetAnswer">
           <span>Anruf per Headset-Knopf annehmen<small class="muted">Während es klingelt, nimmt der Rufannahme-Knopf am Headset an, im Gespräch legt er auf. Bei Jabra dazu in Jabra Direct die Softphone-Integration einschalten. Einmalig „Headset verbinden“ nötig.</small></span>
         </label>
-        <div id="headsetRow" class="device-row" hidden>
-          <span id="headsetStatus" class="muted small">Kein Headset verbunden</span>
-          <button type="button" id="connectHeadset" class="text-btn">Headset verbinden …</button>
+        <div id="headsetRow" class="check-sub" hidden>
+          <span id="headsetStatus" class="status-note muted small">Kein Headset verbunden</span>
+          <button type="button" id="connectHeadset" class="text-btn small-btn">Verbinden …</button>
         </div>
       </section>
 
       <section class="spanel" data-stab="accounts" hidden>
-        <div class="account">
-          <div id="accountList" class="account-list"></div>
-          <button type="button" id="addAccount" class="text-btn">+ Konto hinzufügen</button>
+        <div class="field">
+          <div class="section-label">SIP-Konten</div>
+          <div class="card-list">
+            <div id="accountList" class="account-list"></div>
+            <button type="button" id="addAccount" class="card-add">+ Konto hinzufügen</button>
+          </div>
         </div>
         <label class="check">
           <input type="checkbox" id="lockUnregister">
@@ -303,9 +306,9 @@
             <option value="dark">Dunkel</option>
           </select>
         </div>
-        <div class="account">
-          <div><span class="muted small">Version</span><span id="appVersion"></span></div>
-          <div><span class="muted small">Protokoll (Fehlersuche)</span><button type="button" id="showLog" class="text-btn">Anzeigen</button></div>
+        <div class="card-list">
+          <div class="card-row"><span class="muted">Version</span><span id="appVersion"></span></div>
+          <div class="card-row"><span class="muted">Protokoll (Fehlersuche)</span><button type="button" id="showLog" class="text-btn small-btn">Anzeigen</button></div>
         </div>
       </section>
       <div class="dialog-actions">

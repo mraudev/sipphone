@@ -16,6 +16,8 @@
   --toast-bg: #1f2633;
   --danger: #f87171; /* rote Hinweistexte */
   --scrim: rgba(8, 10, 15, 0.7);
+  --scroll-thumb: rgba(255, 255, 255, 0.22);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.36);
   color-scheme: light dark;
 }
 
@@ -39,6 +41,8 @@
     --toast-bg: #ffffff;
     --danger: #b91c1c;
     --scrim: rgba(15, 23, 42, 0.35);
+    --scroll-thumb: rgba(0, 0, 0, 0.22);
+    --scroll-thumb-hover: rgba(0, 0, 0, 0.38);
   }
 }
 
@@ -57,6 +61,15 @@ body {
 }
 
 svg { width: 1em; height: 1em; fill: currentColor; }
+
+/* Scrollbalken passend zum Design: schmal, abgerundet, ohne Pfeile (Chromium). Bewusst ohne
+   scrollbar-width/-color – sonst ignoriert Chromium diese Angaben. */
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 10px; background: var(--scroll-thumb) padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+::-webkit-scrollbar-button { display: none; }
+dialog::-webkit-scrollbar-track { margin: 18px 0; } /* nicht in die abgerundeten Ecken des Dialogs */
 
 [hidden] { display: none !important; }
 
@@ -155,7 +168,15 @@ body { overflow: hidden; }
 .tab.active, .stab.active { background: var(--overlay-strong); color: var(--text); }
 /* Reiter im Einstellungsdialog (eigene Klasse, damit sie nicht die Hauptreiter umschalten) */
 .stabs { margin: 0 0 18px; }
-.spanel .account { margin-top: 0; }
+/* Zeile unter einer Checkbox (z. B. Headset verbinden): am Text der Checkbox ausgerichtet */
+.check-sub { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 0 23px; }
+.status-note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-note::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 7px;
+  border-radius: 50%; background: var(--muted); vertical-align: 1px;
+}
+.status-note[data-state="on"]::before { background: var(--green); }
+.text-btn.small-btn { flex: none; padding: 5px 12px; border-radius: 8px; font-size: 13px; }
 /* Knopfleiste bleibt sichtbar, auch wenn ein Reiter länger als das Fenster ist */
 #settings .dialog-actions {
   position: sticky; bottom: -24px; margin: 18px 0 -24px; padding: 12px 0 24px;
@@ -456,11 +477,20 @@ dialog label.check { display: flex; gap: 10px; align-items: flex-start; margin: 
 .check + .check { margin-top: 12px; }
 .meter { margin-top: 8px; height: 6px; border-radius: 3px; background: var(--card); overflow: hidden; }
 .meter span { display: block; width: 0; height: 100%; background: var(--green); transition: width 60ms linear; }
-.account { margin: 18px 0; padding: 12px 14px; border-radius: 12px; background: var(--card); display: grid; gap: 8px; }
-.account div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
-.account .account-list { flex-direction: column; gap: 4px; }
-.account .account-item { justify-content: flex-start; align-items: center; gap: 10px; }
-.account .account-item-text { flex: 1; min-width: 0; flex-direction: column; gap: 0; }
+/* Listen-Karte in den Einstellungen (Konten, Allgemein): Zeilen mit Trennlinien */
+.section-label { margin-bottom: 6px; font-size: 13px; color: var(--muted); }
+.card-list { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.card-list > * + *, .account-list > * + * { border-top: 1px solid var(--line); }
+.account-list:empty + .card-add { border-top: 0; }
+.card-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 14px; font-size: 14px; }
+.card-add {
+  display: block; width: 100%; padding: 12px 14px; border: 0;
+  background: transparent; color: var(--accent); font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+}
+.card-add:hover { background: var(--overlay); }
+.account-item { display: flex; align-items: center; gap: 12px; padding: 10px 8px 10px 14px; }
+.account-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.account-item-text b { font-size: 14px; font-weight: 600; }
 .account-item-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-item-text small.account-problem { white-space: normal; overflow-wrap: anywhere; }
 .account-item .dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }

@@ -521,7 +521,9 @@ function renderAccountList() {
       $('settings').close();
       showAccountForm(a);
     };
-    item.append(el('span', 'dot'), text, edit);
+    const dot = el('span', 'dot');
+    dot.title = REG_LABELS[item.dataset.state] || '';
+    item.append(dot, text, edit);
     return item;
   }));
 }
@@ -1446,6 +1448,8 @@ async function connectHeadset() {
 function updateHeadsetStatus() {
   $('headsetRow').hidden = !headsetAnswer;
   $('headsetStatus').textContent = hidDevice ? `Verbunden: ${hidDevice.productName || 'Headset'}` : 'Kein Headset verbunden';
+  $('headsetStatus').dataset.state = hidDevice ? 'on' : 'off';
+  $('headsetStatus').title = $('headsetStatus').textContent; // falls der Name abgeschnitten wird
 }
 
 function initHeadset() {
