@@ -1091,9 +1091,6 @@ function playTone(kind) {
   stopTone();
   if (!audio) return;
   const spec = TONES[kind];
-  if (kind === 'ring' && ringOnHeadset) {
-    headsetLog(`Klingeln zusätzlich im Headset -> Gespräch-Gerät="${activeSpeaker() || 'Systemstandard'}", Klingel-Gerät="${audioCfg.ringer || 'Systemstandard'}"`);
-  }
   tone = { kind, oscillators: [], timers: [] };
   for (const ctx of toneContexts(kind)) {
     if (kind === 'ring' && ringtone) {
@@ -1238,15 +1235,12 @@ function updateHeadsetCall() {
 function answerFromHeadset() {
   if (hidAnswered || Date.now() < hidArmedAt) return;
   hidAnswered = true;
-  headsetLog('-> Anruf angenommen (Headset-Knopf)');
   send({ type: 'answer' });
 }
 
 // Headset-Knopf: annehmen beim Klingeln, auflegen im Gespräch. Zwei Wege je nach Headset-Modus:
 // (1) Hook Switch (Standard-Anrufsteuerung), (2) Anruf-Knopf als Consumer-Medientaste (Fallback).
 function onHidInput(e) {
-  const bytes = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
-  headsetLog(`report id=${e.reportId} [${[...bytes].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join(' ')}…]`);
   if (!headsetAnswer) return;
   const call = state.call;
   // (1) Hook Switch
@@ -1255,9 +1249,8 @@ function onHidInput(e) {
     if (hook !== null) {
       const prev = hidHook;
       hidHook = hook;
-      headsetLog(`Hook-Switch: ${hook}${prev === undefined ? '' : ` (vorher ${prev})`}`);
       if (call && call.state === 'incoming' && prev === 0 && hook === 1) { answerFromHeadset(); return; }
-      if (call && call.state !== 'incoming' && prev === 1 && hook === 0) { headsetLog('-> Gespräch beendet (Headset-Knopf)'); send({ type: 'hangup' }); return; }
+      if (call && call.state !== 'incoming' && prev === 1 && hook === 0) { send({ type: 'hangup' }); return; }
     }
   }
   // (2) Fallback: Anruf-Knopf im Media-Modus, nur beim Klingeln als „annehmen“ werten
@@ -1280,12 +1273,6 @@ async function useHeadset(dev) {
     hidRingLoc = findReportBit(outR, RING);
     hidOffHookLoc = findReportBit(outR, OFF_HOOK);
     hidCallKeys = CALL_KEYS.map((u) => findReportBit(inR, u)).filter(Boolean);
-    const loc = (l) => (l ? `r${l.reportId}/b${l.bit}` : 'nein');
-    headsetLog(`verbunden: ${devLabel(dev)} – Hook ${loc(hidHookLoc)}, Ring ${loc(hidRingLoc)}, OffHook ${loc(hidOffHookLoc)}, Anruf-Taste ${hidCallKeys.map(loc).join('+') || 'nein'}`);
-    if (!hidHookLoc) {
-      const usages = inR.map((r) => `r${r.reportId}:${(r.items || []).flatMap((i) => i.usages || []).map((u) => u.toString(16)).join(',')}`);
-      headsetLog('Input-Reports: ' + (usages.join(' | ') || 'keine'));
-    }
     updateHeadsetCall(); // falls schon ein Anruf läuft, Signale gleich setzen
   } catch (err) {
     headsetLog('open: ' + err.message);
@@ -1293,9 +1280,6 @@ async function useHeadset(dev) {
 }
 
 const JABRA_VID = 0x0b0e; // Hersteller-ID von GN/Jabra
-
-const hx = (n) => (n || 0).toString(16).padStart(4, '0');
-const devLabel = (d) => `${d.productName || 'HID'} (${hx(d.vendorId)}:${hx(d.productId)})`;
 
 // USB-Kennung (VID:PID) des Gesprächs-Ausgabegeräts – Chrome hängt "(vvvv:pppp)" an den Gerätenamen.
 function speakerVidPid() {
@@ -1325,15 +1309,8 @@ function pickHeadset(devs) {
 async function syncHeadset() {
   if (!navigator.hid || !headsetAnswer) return;
   try {
-    const devs = await navigator.hid.getDevices();
-    headsetLog('HID-Geräte: ' + (devs.map(devLabel).join(', ') || 'keine'));
-    const dev = pickHeadset(devs);
-    const t = speakerVidPid();
-    if (!dev) {
-      headsetLog(`kein HID passend zum Gesprächs-Gerät (${t ? hx(t.vid) + ':' + hx(t.pid) : 'unbekannt'}) gefunden`);
-    } else if (dev !== hidDevice) {
-      await useHeadset(dev);
-    }
+    const dev = pickHeadset(await navigator.hid.getDevices());
+    if (dev && dev !== hidDevice) await useHeadset(dev);
   } catch (err) {
     headsetLog('getDevices: ' + err.message);
   }
@@ -1348,9 +1325,7 @@ async function connectHeadset() {
   }
   try {
     const chosen = await navigator.hid.requestDevice({ filters: [{ vendorId: JABRA_VID }, { usagePage: 0x0b }] });
-    const all = await navigator.hid.getDevices();
-    headsetLog('Auswahl -> HID-Geräte: ' + (all.map(devLabel).join(', ') || 'keine'));
-    const dev = pickHeadset(all) || pickHeadset(chosen) || chosen[0];
+    const dev = pickHeadset(await navigator.hid.getDevices()) || pickHeadset(chosen) || chosen[0];
     if (!dev) {
       toast('Kein zum Gesprächs-Gerät passendes Headset gefunden.', true);
       updateHeadsetStatus();

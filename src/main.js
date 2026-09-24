@@ -72,7 +72,6 @@ function createWindow() {
   ses.on('select-hid-device', (event, details, callback) => {
     event.preventDefault();
     const list = details.deviceList || [];
-    console.log('[Headset] Auswahl:', list.map((d) => `${d.name || d.productName} (VID ${(d.vendorId || 0).toString(16)})`).join(', ') || 'keine');
     const pick = list.find((d) => d.vendorId === 0x0b0e) || list.find((d) => /jabra/i.test(d.name || d.productName || '')) || list[0];
     callback(pick ? pick.deviceId : undefined);
   });
@@ -613,7 +612,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:resetRingtone', () => resetRingtone());
     ipcMain.handle('phone:version', () => app.getVersion());
     ipcMain.handle('phone:openLog', () => shell.showItemInFolder(logFile));
-    ipcMain.on('phone:log', (_e, text) => console.log('[Headset]', String(text).slice(0, 300)));
+    ipcMain.on('phone:log', (_e, text) => console.warn('[Headset]', String(text).slice(0, 300))); // nur Fehler
     ipcMain.handle('phone:getUpdate', () => (updateReady ? { version: updateReady, notes: updateNotes } : null));
     ipcMain.handle('phone:installUpdate', () => installUpdate());
     ipcMain.handle('phone:history', () => historyView());

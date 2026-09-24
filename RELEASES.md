@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.21.1
+- **Protokoll aufgeräumt:** Die Diagnose-Einträge zur Headset-Anbindung (jeder Tastendruck, Gerätelisten) sind wieder entfernt; es werden nur noch echte Fehler protokolliert.
+
 ## 1.21.0
 - **Linux-Version:** Neben Windows gibt es jetzt ein **AppImage** (ohne Installation, aktualisiert sich selbst) und ein **Debian/Ubuntu-Paket** (`.deb`). Unter Linux entfallen der Outlook-Import und das Abmelden bei gesperrtem Bildschirm; Details in der README.
 
