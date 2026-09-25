@@ -15,6 +15,7 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 - **Klingelton wählbar**: Standard-Dreiklang, zehn weitere eingebaute Töne (einfach und mehrstimmig) oder eine eigene Datei (WAV, MP3, OGG, M4A, FLAC); auf Wunsch klingelt es zusätzlich im Headset (gleichzeitig auf Klingel- und Gesprächsgerät)
 - **Einstellungen in Reitern** (Audio, Anrufe, Konten, Allgemein); ein Klick auf die Statuszeile öffnet direkt die Konten
 - **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage). Nummern aus dem Telefonbuch lassen sich per Stern direkt auf die Kurzwahl legen
+- **CTI-Server (optional je Konto)**: Hat die Telefonanlage einen CTI-Server, zeigt und schaltet SIP Phone *Nicht stören* und *Abwesend* (Knöpfe oben rechts, Stand auch in der Statuszeile; Umschalten an anderer Stelle wird übernommen), die Kurzwahl zeigt zusätzlich *Nicht stören*, *abwesend* und *nicht erreichbar*, und in einer Konferenz steht im Gespräch die Liste der Teilnehmer (Eingeladene mit „wird angerufen …“). Einzutragen beim Konto unter *CTI-Server (optional)*: Server, Port (Standard 1337) und Windows-Anmeldename
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf; unbekannte Anrufer lassen sich mit einem Klick als Kontakt ins Telefonbuch übernehmen
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com) sowie Export des gesamten Telefonbuchs als CSV (für Excel oder zur Sicherung). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
@@ -89,6 +90,7 @@ $env:SIP_TRACE='1'; npm start
 | `src/rtp.js`, `src/sdp.js` | RTP mit G.711-Codec, SDP-Aushandlung |
 | `src/config.js`, `src/history.js` | Einstellungen und Gesprächsverlauf |
 | `src/g722.js` | G.722-Codec (Breitband) |
+| `src/cti.js` | Optionale Anbindung an den CTI-Server der Anlage (TCP, `<Typ>-<JSON> `) |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf die Codec-Rate (8/16/48 kHz) um |
 
 ## Updates
@@ -129,6 +131,7 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
   - chan_sip: `allowsubscribe=yes` (global oder beim Peer) und für die beobachteten Nebenstellen **Hints** im Wählplan, z. B. `exten => 797,hint,SIP/797` im passenden `subscribecontext`
   - PJSIP/FreePBX: BLF/Hints entsprechend aktiviert
   - Ohne Hints bleibt der Punkt grau; Wählen per Klick funktioniert trotzdem
+- **CTI-Server:** Verbindung per TCP (ohne Verschlüsselung) mit dem Windows-Anmeldenamen; der Server ordnet darüber das Telefon zu. Er lässt höchstens 6 neue Verbindungen je IP in 5 Minuten zu – SIP Phone bleibt mit Wartezeiten beim Neuverbinden darunter. Das Konferenz-Event bekommt nur, wessen Telefon selbst in der Konferenz ist.
 - **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden – oder die Nummer steht im Telefonbuch, dessen Name dann Vorrang hat.
 
 ## Einschränkungen
@@ -136,4 +139,4 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
 - Nur UDP (kein TCP/TLS), keine Verschlüsselung (SRTP)
 - Codecs: Opus (bevorzugt) und G.722 (beide HD) sowie G.711 (PCMA/PCMU); es wird automatisch der beste von der Gegenstelle unterstützte Codec gewählt, sonst Rückfall bis G.711. HD ist in den Einstellungen abschaltbar
 - Ein Gespräch gleichzeitig über alle Konten; ein zweiter Anruf wird mit „besetzt“ abgewiesen
-- Ein reguläres Gespräch gleichzeitig (plus ein Rückfragegespräch beim Weiterleiten); kein Konferenzgespräch
+- Ein reguläres Gespräch gleichzeitig (plus ein Rückfragegespräch beim Weiterleiten); Konferenzen laufen über den Konferenzraum der Anlage, die Teilnehmerliste gibt es nur mit CTI-Server

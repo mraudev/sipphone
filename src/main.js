@@ -13,6 +13,7 @@ const { Contacts, normalizeNumber } = require('./contacts');
 const { importOutlookContacts } = require('./outlook');
 const { readContactsCsv } = require('./csvimport');
 const { contactsToCsv } = require('./csvexport');
+const { CtiClient } = require('./cti');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const APP_ORIGIN = 'app://phone';
@@ -36,6 +37,8 @@ let phone = null; // alle Konten (src/phone.js)
 let history = null;
 let contacts = null;
 const presence = {}; // Kurzwahl-Status je Nebenstelle (BLF): 'idle' | 'ringing' | 'busy' | 'unknown'
+const ctis = new Map(); // Konto-ID -> CtiClient (nur Konten mit eingetragenem CTI-Server)
+let ctiSendTimer = null;
 let flashing = false;
 let quitting = false;
 let stopped = false;
@@ -132,7 +135,8 @@ function connectionSummary(accounts) {
 
 function updateTray(s) {
   if (!tray) return;
-  tray.setToolTip(`SIP Phone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}`);
+  const dnd = [...ctis.values()].some((c) => c.own && c.own.dnd);
+  tray.setToolTip(`SIP Phone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}${dnd ? ' · Nicht stören' : ''}`);
 }
 
 // Bei mehreren Konten steht in Benachrichtigungen, welches Konto gemeint ist.
@@ -283,6 +287,87 @@ function notifyMissed(entry) {
   n.show();
 }
 
+// --- CTI-Server (optional je Konto): Nicht stören, Abwesend, Status der Kurzwahl, Konferenzteilnehmer ---
+
+// Verbindungen passend zu den Konten starten/stoppen; neu verbunden wird nur bei geänderten Angaben.
+function syncCti() {
+  for (const [id, client] of ctis) {
+    const a = cfg.accounts.find((x) => x.id === id);
+    if (!a || !a.ctiHost || !a.ctiUser || a.ctiHost !== client.host || (Number(a.ctiPort) || 1337) !== client.port || a.ctiUser !== client.user) {
+      client.stop();
+      ctis.delete(id);
+    }
+  }
+  for (const a of cfg.accounts) {
+    if (!a.ctiHost || !a.ctiUser || ctis.has(a.id)) continue;
+    const client = new CtiClient({ host: a.ctiHost, port: a.ctiPort, user: a.ctiUser }, { label: a.label });
+    client.on('change', ctiChanged);
+    ctis.set(a.id, client);
+    client.start();
+  }
+  ctiChanged();
+}
+
+// Nach der Anmeldung kommt je Telefon ein Event -> gesammelt ans Fenster schicken.
+function ctiChanged() {
+  if (ctiSendTimer) return;
+  ctiSendTimer = setTimeout(() => {
+    ctiSendTimer = null;
+    send('phone:cti', ctiView());
+    if (phone) updateTray(phone.snapshot());
+  }, 50);
+}
+
+function ctiView() {
+  const favorites = new Set(cfg.favorites.map((f) => f.number));
+  const phones = {}; // nur die Kurzwahl-Nummern – die Anlage kennt oft Hunderte Telefone
+  const names = {}; // Nummer -> Name laut Anlage
+  let conference = null;
+  for (const client of ctis.values()) {
+    for (const p of client.phones.values()) {
+      if (p.number && p.name && !names[p.number]) names[p.number] = p.name;
+      if (favorites.has(p.number) && !phones[p.number]) phones[p.number] = { state: p.state, dnd: p.dnd, away: p.away };
+    }
+  }
+  for (const client of ctis.values()) {
+    const own = client.own;
+    const conf = client.conferences.values().next().value;
+    if (!conf || conference) continue;
+    conference = {
+      id: conf.id,
+      owner: !!own && conf.ownerDevice === own.id,
+      channels: [...conf.channels.values()].map((ch) => ({
+        id: ch.id,
+        number: ch.number,
+        name: contacts.lookup(ch.number) || names[ch.number] || '',
+        invited: ch.invited,
+        self: !!own && ch.number === own.number,
+      })),
+    };
+  }
+  return {
+    accounts: [...ctis].map(([id, c]) => ({
+      id,
+      status: c.status,
+      reason: c.reason,
+      dnd: c.own ? c.own.dnd : null,
+      away: c.own ? c.own.away : null,
+    })),
+    phones,
+    conference,
+  };
+}
+
+// Nicht stören / Abwesend: gilt für alle Konten, deren CTI-Server verbunden ist.
+function setCtiFlag(kind, on) {
+  const connected = [...ctis.values()].filter((c) => c.status === 'connected');
+  if (!connected.length) throw new Error('CTI-Server nicht verbunden');
+  for (const c of connected) {
+    if (kind === 'dnd') c.setDnd(on);
+    else c.setAway(on);
+  }
+}
+
 // Zugangsdaten: Passwort und HA1-Hash (aus Linphone) gelten beide als Passwort fürs SIP-Konto.
 const SECRET_FIELDS = ['password', 'ha1'];
 
@@ -346,6 +431,9 @@ function accountsView() {
     authUsername: a.authUsername,
     proxy: a.proxy,
     proxyPort: a.proxyPort,
+    ctiHost: a.ctiHost,
+    ctiPort: a.ctiPort,
+    ctiUser: a.ctiUser,
     hasCredentials: !!(a.password || a.ha1),
   }));
 }
@@ -367,7 +455,11 @@ async function saveAccount(data) {
     authUsername,
     proxy: field('proxy') || domain,
     proxyPort: Number(field('proxyPort')) || 5060,
+    ctiHost: field('ctiHost'),
+    ctiPort: Number(field('ctiPort')) || 1337,
+    ctiUser: field('ctiUser'),
   };
+  if (!changes.ctiHost !== !changes.ctiUser) return { error: 'Für den CTI-Server bitte Server und Anmeldename angeben (oder beides leer lassen).' };
   const password = String(data.password || '');
   if (password) {
     Object.assign(changes, { password, ha1: '', realm: '' });
@@ -384,6 +476,7 @@ async function saveAccount(data) {
     await phone.addAccount(account);
   }
   persist();
+  syncCti();
   return { accounts: accountsView() };
 }
 
@@ -392,6 +485,7 @@ async function deleteAccount(id) {
   await phone.removeAccount(id); // meldet vorher ab
   cfg.accounts = cfg.accounts.filter((a) => a.id !== id);
   persist();
+  syncCti();
   return { accounts: accountsView() };
 }
 
@@ -519,7 +613,10 @@ async function runCommand(msg) {
     else if (msg.type === 'attendedTransfer') phone.attendedTransfer(String(msg.target || ''));
     else if (msg.type === 'completeTransfer') phone.completeTransfer();
     else if (msg.type === 'cancelConsult') phone.cancelConsult();
-    else if (msg.type === 'register') await phone.register();
+    else if (msg.type === 'register') {
+      await phone.register();
+      for (const c of ctis.values()) c.retry();
+    } else if (msg.type === 'dnd' || msg.type === 'away') setCtiFlag(msg.type, !!msg.on);
     return null;
   } catch (err) {
     return { error: err.message };
@@ -640,6 +737,7 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:importCsv', () => importCsv());
     ipcMain.handle('phone:exportCsv', () => exportCsv());
     ipcMain.handle('phone:favorites', () => ({ list: cfg.favorites, presence }));
+    ipcMain.handle('phone:cti', () => ctiView());
     ipcMain.handle('phone:saveFavorites', (_e, list) => {
       cfg.favorites = (Array.isArray(list) ? list : [])
         .map((f) => ({ name: String(f.name || '').trim(), number: String(f.number || '').trim() }))
@@ -647,6 +745,7 @@ if (!app.requestSingleInstanceLock()) {
       persist();
       for (const ext of Object.keys(presence)) if (!cfg.favorites.some((f) => f.number === ext)) delete presence[ext];
       phone.setFavorites(cfg.favorites.map((f) => f.number));
+      ctiChanged();
       return { list: cfg.favorites };
     });
 
@@ -654,12 +753,14 @@ if (!app.requestSingleInstanceLock()) {
     createWindow();
     await phone.start();
     phone.setFavorites(cfg.favorites.map((f) => f.number));
+    syncCti();
     setupUpdater();
   });
 
   // Vor dem Beenden sauber beim Server abmelden.
   app.on('before-quit', (e) => {
     quitting = true;
+    for (const c of ctis.values()) c.stop();
     if (stopped || !phone) return;
     e.preventDefault();
     phone.stop().finally(() => {

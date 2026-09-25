@@ -15,6 +15,12 @@
         <span>SIP Phone</span>
       </div>
       <div class="topbar-actions">
+        <button id="awayBtn" class="icon-btn" title="Als abwesend markieren" aria-label="Abwesend" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7z"/></svg>
+        </button>
+        <button id="dndBtn" class="icon-btn" title="Nicht stören einschalten" aria-label="Nicht stören" aria-pressed="false" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm5 11H7v-2h10v2z"/></svg>
+        </button>
         <button id="reconnectBtn" class="icon-btn" title="Neu verbinden" aria-label="Neu verbinden">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"/></svg>
         </button>
@@ -127,6 +133,13 @@
           <label>Proxy (falls abweichend)<input name="proxy" placeholder="wie Server"></label>
           <label>Port<input name="proxyPort" type="number" min="1" max="65535" placeholder="5060"></label>
         </details>
+        <details id="ctiDetails">
+          <summary>CTI-Server (optional)</summary>
+          <p class="muted small">Nur wenn die Telefonanlage einen CTI-Server hat: Nicht stören, Abwesend, Status der Kurzwahl und Konferenz-Teilnehmer.</p>
+          <label>CTI-Server<input name="ctiHost" placeholder="z. B. cti.firma.de"></label>
+          <label>Port<input name="ctiPort" type="number" min="1" max="65535" placeholder="1337"></label>
+          <label>Anmeldename (Windows-Login)<input name="ctiUser" placeholder="z. B. m.mustermann"></label>
+        </details>
         <p id="accountError" class="reason" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="accountDelete" class="text-btn danger" hidden>Löschen</button>
@@ -143,6 +156,10 @@
       <p id="callUri" class="muted"></p>
       <p id="callLine" class="call-line" hidden></p>
       <p id="callStatus" class="call-status"></p>
+      <div id="confPanel" class="conf-panel" hidden>
+        <div id="confTitle" class="conf-title"></div>
+        <ul id="confList" class="conf-list"></ul>
+      </div>
       <p id="consultHeld" class="consult-held muted" hidden></p>
       <p id="dtmfDigits" class="dtmf-digits" hidden></p>
       <div id="volumeRow" class="volume-row" hidden>

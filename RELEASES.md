@@ -2,6 +2,13 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.24.0
+- **CTI-Server (optional je Konto):** Hat die Telefonanlage einen CTI-Server, lässt er sich beim Konto unter *CTI-Server (optional)* eintragen (Server, Port – Standard 1337 – und Windows-Anmeldename). Ohne Eintrag ändert sich nichts.
+  - **Nicht stören** und **Abwesend** per Knopf oben rechts schalten; der Stand steht auch in der Statuszeile. Umschalten an anderer Stelle (z. B. im Click-to-Dial-Tool) wird übernommen.
+  - **Kurzwahl** zeigt zusätzlich *Nicht stören*, *abwesend* und *nicht erreichbar*.
+  - **Konferenz:** Im Gespräch erscheint die Liste der Teilnehmer (Name aus Telefonbuch oder Anlage, du selbst als „(du)“, Eingeladene mit „wird angerufen …“).
+  - Verbindungsstatus unter *Einstellungen → Konten*; bei Abbruch verbindet die App mit Wartezeiten neu (höchstens 5 Verbindungen in 5 Minuten).
+
 ## 1.23.0
 - **Auflege-Ton:** Endet ein verbundenes Gespräch – egal ob die Gegenstelle oder du auflegst –, kommt im Headset (Gesprächsgerät) ein kurzer Ton aus drei absteigenden Tönen. Bei verpassten oder abgelehnten Anrufen ertönt er nicht.
 

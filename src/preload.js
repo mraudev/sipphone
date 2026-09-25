@@ -33,6 +33,8 @@ contextBridge.exposeInMainWorld('phone', {
   getFavorites: () => ipcRenderer.invoke('phone:favorites'),
   saveFavorites: (list) => ipcRenderer.invoke('phone:saveFavorites', list),
   onPresence: (cb) => ipcRenderer.on('phone:presence', (_e, p) => cb(p)),
+  getCti: () => ipcRenderer.invoke('phone:cti'),
+  onCti: (cb) => ipcRenderer.on('phone:cti', (_e, view) => cb(view)),
   getHistory: () => ipcRenderer.invoke('phone:history'),
   clearHistory: () => ipcRenderer.invoke('phone:clearHistory'),
   onHistory: (cb) => ipcRenderer.on('phone:historyChanged', (_e, entries) => cb(entries)),

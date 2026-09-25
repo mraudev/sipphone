@@ -26,6 +26,10 @@ const ACCOUNT_DEFAULTS = {
   proxy: '',
   proxyPort: 5060,
   expires: 600,
+  // Optional: CTI-Server der Anlage (Nicht stören, Abwesend, Status, Konferenzen). Leer = ohne CTI.
+  ctiHost: '',
+  ctiPort: 1337,
+  ctiUser: '', // Anmeldename (AD-Login), der Server ordnet darüber das Telefon zu
 };
 const ACCOUNT_KEYS = [...Object.keys(ACCOUNT_DEFAULTS), 'passwordEnc', 'ha1Enc', 'sipPort'];
 

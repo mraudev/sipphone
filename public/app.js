@@ -50,6 +50,9 @@ let speakerMode = false; // Freisprech-Profil aktiv (eigenes Ein-/Ausgabegerät)
 let favorites = []; // Kurzwahl: [{ name, number }]
 let presence = {}; // Kurzwahl-Status je Nummer (BLF): 'idle' | 'ringing' | 'busy' | 'unknown'
 let editingFavorite = null; // Nummer des gerade bearbeiteten Favoriten, null = neu
+// CTI-Server (optional je Konto): accounts = Verbindung + eigenes Nicht stören/Abwesend,
+// phones = Status der Kurzwahl-Nummern, conference = Konferenz, in der das eigene Telefon ist
+let cti = { accounts: [], phones: {}, conference: null };
 
 // --- Verbindung zum SIP-Stack im Electron-Hauptprozess ---
 
@@ -81,8 +84,12 @@ function renderStatus() {
     text = registered === list.length ? 'Verbunden' : registered ? `${registered} von ${list.length} verbunden` : REG_LABELS[key];
     detail = list.map((a) => a.label).join(' · ');
   }
+  // Nicht stören / Abwesend (vom CTI-Server): deutlich in der Statuszeile, damit es nicht versehentlich anbleibt
+  const own = ctiOwn();
+  if (key === 'registered' && (own.dnd || own.away)) text = own.dnd ? 'Nicht stören' : 'Abwesend';
   const status = $('regStatus');
   status.dataset.state = key;
+  status.dataset.presence = own.dnd ? 'dnd' : own.away ? 'away' : '';
   status.querySelector('.status-text').textContent = text;
   status.querySelector('.status-aor').textContent = detail;
   const problems = list.filter((a) => a.state === 'failed' && a.reason).map((a) => (list.length > 1 ? `${a.label}: ${a.reason}` : a.reason));
@@ -99,6 +106,34 @@ function renderStatus() {
     : 'Das Konto ist an einem anderen Gerät angemeldet – hierher holen';
   renderAccountList();
   renderLineSelect();
+  renderCtiButtons();
+}
+
+// Eigener Stand über alle verbundenen CTI-Server (in der Regel genau einer).
+function ctiOwn() {
+  const connected = cti.accounts.filter((a) => a.status === 'connected');
+  return { connected: connected.length > 0, dnd: connected.some((a) => a.dnd), away: connected.some((a) => a.away) };
+}
+
+// Knöpfe im Kopfbereich nur, wenn bei einem Konto ein CTI-Server eingetragen ist.
+function renderCtiButtons() {
+  const own = ctiOwn();
+  const offline = 'CTI-Server nicht verbunden';
+  for (const [id, on] of [['dndBtn', own.dnd], ['awayBtn', own.away]]) {
+    const b = $(id);
+    b.hidden = !cti.accounts.length;
+    b.disabled = !own.connected;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  $('dndBtn').title = !own.connected ? `Nicht stören – ${offline}` : own.dnd ? 'Nicht stören ist an – Anrufe kommen nicht durch. Klicken zum Ausschalten' : 'Nicht stören einschalten';
+  $('awayBtn').title = !own.connected ? `Abwesend – ${offline}` : own.away ? 'Du bist als abwesend markiert. Klicken zum Zurücksetzen' : 'Als abwesend markieren';
+}
+
+function ctiStatusText(c) {
+  if (c.status === 'connected') return 'CTI verbunden';
+  if (c.status === 'connecting') return 'CTI: verbinde …';
+  return `CTI: ${c.reason || 'nicht verbunden'}`;
 }
 
 function multipleAccounts() {
@@ -173,12 +208,18 @@ function render() {
     $('speakerBtn').classList.toggle('active', speakerMode);
     $('speakerBtn').title = speakerMode ? 'Freisprechen aus (zurück aufs Headset)' : 'Freisprechen (Lautsprecher-Profil)';
     $('volumeRow').hidden = !!consult; // Lautstärke im Gespräch immer sichtbar (außer während der Rückfrage)
+    const conf = active && !consult ? cti.conference : null;
+    $('callView').classList.toggle('conference', !!conf);
+    $('confPanel').hidden = !conf;
+    if (conf) renderConference(conf);
     $('holdBtn').classList.toggle('active', !!call.held);
     $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
     document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'SIP Phone';
   } else {
     document.title = 'SIP Phone';
+    $('callView').classList.remove('conference');
+    $('confPanel').hidden = true;
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm
     transferOpen = false;
     if (speakerMode) { // nächstes Gespräch beginnt wieder auf dem normalen Gerät
@@ -191,6 +232,23 @@ function render() {
   }
   updateCallStatus();
   updateAudio();
+}
+
+// Teilnehmerliste der Konferenz (vom CTI-Server); Eingeladene klingeln noch.
+function renderConference(conf) {
+  const joined = conf.channels.filter((c) => !c.invited).length;
+  const invited = conf.channels.length - joined;
+  $('confTitle').textContent = `Konferenz · ${joined} Teilnehmer${invited ? ` · ${invited} eingeladen` : ''}`;
+  $('confList').replaceChildren(...conf.channels.map((c) => {
+    const li = el('li', 'conf-item');
+    li.dataset.state = c.invited ? 'invited' : 'joined';
+    const who = el('div', 'conf-who');
+    who.append(el('b', '', `${c.name || c.number || 'Unbekannt'}${c.self ? ' (du)' : ''}`));
+    const detail = [c.name ? c.number : '', c.invited ? 'wird angerufen …' : ''].filter(Boolean).join(' · ');
+    if (detail) who.append(el('small', '', detail));
+    li.append(el('span', 'conf-dot'), who);
+    return li;
+  }));
 }
 
 function initials(name) {
@@ -451,6 +509,10 @@ function showAccountForm(account = null) {
   // Proxy nur anzeigen, wenn er vom Server abweicht
   if (account && account.proxy === account.domain) form.elements.proxy.value = '';
   form.elements.proxyPort.value = account && account.proxyPort !== 5060 ? account.proxyPort : '';
+  form.elements.ctiHost.value = (account && account.ctiHost) || '';
+  form.elements.ctiUser.value = (account && account.ctiUser) || '';
+  form.elements.ctiPort.value = account && account.ctiPort && account.ctiPort !== 1337 ? account.ctiPort : '';
+  $('ctiDetails').open = !!(account && account.ctiHost);
   form.elements.password.value = '';
   form.elements.password.placeholder = account && account.hasCredentials ? 'unverändert lassen' : '';
   $('accountTitle').textContent = account ? 'Konto bearbeiten' : accountConfigured() ? 'Konto hinzufügen' : 'SIP-Konto einrichten';
@@ -514,6 +576,8 @@ function renderAccountList() {
     else if (s && (s.state === 'elsewhere' || s.state === 'locked')) problem = REG_LABELS[s.state];
     text.append(el('b', '', a.label), el('small', 'muted', `${a.username}@${a.domain}`));
     if (problem) text.append(el('small', 'muted account-problem', problem)); // eigene Zeile, bricht um
+    const c = cti.accounts.find((x) => x.id === a.id);
+    if (c) text.append(el('small', 'muted account-problem', ctiStatusText(c)));
     const edit = el('button', 'icon-btn subtle');
     edit.type = 'button';
     edit.title = `${a.label} bearbeiten`;
@@ -795,11 +859,18 @@ function renderContacts() {
 
 // --- Kurzwahl (Besetztlampenfeld) ---
 
-const PRESENCE_LABELS = { idle: 'frei', ringing: 'klingelt', busy: 'besetzt', unknown: 'kein Status' };
+const PRESENCE_LABELS = { idle: 'frei', ringing: 'klingelt', busy: 'besetzt', offline: 'nicht erreichbar', dnd: 'Nicht stören', away: 'abwesend', unknown: 'kein Status' };
+
+// Status einer Kurzwahl: CTI-Server (mit Nicht stören/Abwesend) vor BLF.
+function favoriteState(number) {
+  const p = cti.phones[number];
+  if (p && (p.dnd || p.away || p.state !== 'unknown')) return p.dnd ? 'dnd' : p.away ? 'away' : p.state;
+  return presence[number] || 'unknown';
+}
 
 function renderFavorites() {
   favoritePager.show(favorites.map((f) => {
-    const state = presence[f.number] || 'unknown';
+    const state = favoriteState(f.number);
     const li = el('li', 'favorite');
     li.dataset.state = state;
     const dot = el('span', 'fav-dot');
@@ -1792,6 +1863,8 @@ $('reconnectBtn').onclick = () => {
   toast('Neu verbinden …');
 };
 $('reRegister').onclick = () => send({ type: 'register' });
+$('dndBtn').onclick = () => send({ type: 'dnd', on: !ctiOwn().dnd });
+$('awayBtn').onclick = () => send({ type: 'away', on: !ctiOwn().away });
 $('takeoverBtn').onclick = () => send({ type: 'register' });
 $('addFavorite').onclick = () => openFavoriteDialog();
 $('favForm').onsubmit = saveFavorite;
@@ -1862,6 +1935,11 @@ window.phone.onPresence(({ ext, state: st }) => {
   presence[ext] = st;
   renderFavorites();
 });
+window.phone.onCti((view) => {
+  cti = view;
+  render();
+  renderFavorites();
+});
 window.phone.onUpdate((info) => {
   update = info;
   render();
@@ -1911,6 +1989,7 @@ window.phone.onAudioFormat((fmt) => {
   const fav = await window.phone.getFavorites();
   favorites = fav.list;
   presence = fav.presence || {};
+  cti = await window.phone.getCti();
   renderFavorites();
   render();
   initHeadset();
