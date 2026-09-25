@@ -20,6 +20,7 @@ let mic = null; // null | 'pending' | { stream, source }
 let muted = false;
 let audioCfg = { microphone: '', speaker: '', ringer: '' }; // Gerätenamen aus config.json
 let devices = [];
+let defaultOutputLabel = ''; // Name des Windows-Standard-Ausgabegeräts (für „Systemstandard“)
 let history = [];
 let contacts = []; // Telefonbuch; jede Nummer hat zusätzlich "dial" (wählbare Form)
 let activeTab = 'dialer';
@@ -1330,11 +1331,22 @@ async function setOutput(loc, on) {
 }
 
 // Headset-Signale an den Anrufzustand angleichen: Ring bei eingehendem Anruf, Off-Hook im Gespräch.
+// „Im Gespräch“ (Off-Hook) meldet die App dem Headset immer: Dongles mit Softphone-Integration (z. B.
+// Jabra Link 390) geben das Mikrofon erst dann frei. Klingeln am Headset nur mit der Annehmen-Option.
 function updateHeadsetCall() {
   if (!hidDevice) return;
-  const call = headsetAnswer ? state.call : null;
-  setOutput(hidRingLoc, !!call && call.state === 'incoming');
+  const call = state.call;
+  setOutput(hidRingLoc, headsetAnswer && !!call && call.state === 'incoming');
   setOutput(hidOffHookLoc, !!call && call.state !== 'incoming');
+}
+
+// Headset freigeben (anderes Gesprächs-Gerät gewählt): Signale zurücksetzen, nicht mehr auswerten.
+function releaseHeadset() {
+  if (!hidDevice) return;
+  setOutput(hidRingLoc, false);
+  setOutput(hidOffHookLoc, false);
+  hidDevice.oninputreport = null;
+  hidDevice = null;
 }
 
 function answerFromHeadset() {
@@ -1389,8 +1401,9 @@ const JABRA_VID = 0x0b0e; // Hersteller-ID von GN/Jabra
 // USB-Kennung (VID:PID) des Gesprächs-Ausgabegeräts – Chrome hängt "(vvvv:pppp)" an den Gerätenamen.
 function speakerVidPid() {
   const name = activeSpeaker() || '';
-  const dev = devices.find((d) => d.kind === 'audiooutput' && (d.label === name || d.label.startsWith(name)));
-  const m = /\(([0-9a-f]{4}):([0-9a-f]{4})\)/i.exec((dev && dev.label) || name);
+  // „Systemstandard“ (leer): das tatsächliche Standardgerät nehmen – ein leerer Name passt sonst auf jedes Gerät.
+  const dev = name && devices.find((d) => d.kind === 'audiooutput' && (d.label === name || d.label.startsWith(name)));
+  const m = /\(([0-9a-f]{4}):([0-9a-f]{4})\)/i.exec(name ? (dev && dev.label) || name : defaultOutputLabel);
   return m ? { vid: parseInt(m[1], 16), pid: parseInt(m[2], 16) } : null;
 }
 
@@ -1412,10 +1425,13 @@ function pickHeadset(devs) {
 // Passendes Headset anbinden (ohne Auswahldialog). Aufruf bei Aktivierung, Start, Geräteänderung
 // und beim Öffnen der Einstellungen.
 async function syncHeadset() {
-  if (!navigator.hid || !headsetAnswer) return;
+  if (!navigator.hid) return;
   try {
-    const dev = pickHeadset(await navigator.hid.getDevices());
-    if (dev && dev !== hidDevice) await useHeadset(dev);
+    // Ohne Annehmen-Option nur das Headset ansprechen, das zum Gesprächs-Gerät gehört – nie eins raten.
+    const t = speakerVidPid();
+    const dev = t || headsetAnswer ? matchHeadset(await navigator.hid.getDevices(), t) : null;
+    if (!dev) releaseHeadset();
+    else if (dev !== hidDevice) await useHeadset(dev);
   } catch (err) {
     headsetLog('getDevices: ' + err.message);
   }
@@ -1457,8 +1473,8 @@ function initHeadset() {
   navigator.hid.addEventListener('disconnect', (e) => {
     if (e.device === hidDevice) { hidDevice = null; updateHeadsetStatus(); }
   });
-  navigator.hid.addEventListener('connect', () => { if (headsetAnswer) syncHeadset(); });
-  if (headsetAnswer) syncHeadset();
+  navigator.hid.addEventListener('connect', () => syncHeadset());
+  syncHeadset();
 }
 
 // --- Geräte (Namen stehen in config.json, Vorbelegung aus Linphone) ---
@@ -1466,6 +1482,8 @@ function initHeadset() {
 async function refreshDevices() {
   const all = await navigator.mediaDevices.enumerateDevices();
   devices = all.filter((d) => d.deviceId !== 'default' && d.deviceId !== 'communications');
+  const def = all.find((d) => d.kind === 'audiooutput' && d.deviceId === 'default');
+  defaultOutputLabel = def ? def.label : '';
 }
 
 // Linphone-Namen haben keinen "(vid:pid)"-Zusatz, daher auch Treffer über den Namensanfang.
@@ -1520,7 +1538,7 @@ function onDeviceChange() {
   window.phone.setAudio(audioCfg);
   applySinks();
   startMeter();
-  if (headsetAnswer) syncHeadset(); // Gesprächs-Gerät geändert -> passendes Headset neu wählen
+  syncHeadset(); // Gesprächs-Gerät geändert -> passendes Headset neu wählen
   if (mic) {
     stopMic();
     updateAudio();
@@ -1794,7 +1812,7 @@ $('ringOnHeadset').onchange = () => {
 $('headsetAnswer').onchange = async () => {
   headsetAnswer = $('headsetAnswer').checked;
   window.phone.setOptions({ headsetAnswer });
-  if (headsetAnswer) await syncHeadset();
+  await syncHeadset();
   updateHeadsetCall(); // beim Ausschalten Signale löschen, beim Einschalten ggf. setzen
   updateHeadsetStatus();
 };

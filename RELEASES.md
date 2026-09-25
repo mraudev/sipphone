@@ -2,6 +2,10 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.22.2
+- **Headset-Mikrofon mit Jabra-Softphone-Integration:** Die App meldet dem Headset des Gesprächs-Geräts jetzt immer „im Gespräch“ (Off-Hook) – unabhängig von der Option zur Rufannahme per Knopf. Der Jabra Link 390 gibt mit eingeschalteter Softphone-Integration das Mikrofon erst dann frei; vorher hörte die Gegenstelle nichts. Klingeln am Headset und Annehmen per Knopf bleiben optional.
+- Bei Gesprächs-Gerät „Systemstandard“ wird das tatsächliche Windows-Standardgerät erkannt (vorher wurde das erste Gerät der Liste angenommen).
+
 ## 1.22.1
 - **Einstellungen optisch überarbeitet:** schmaler, abgerundeter Scrollbalken passend zum Design (hell und dunkel, ohne Pfeile); die Headset-Zeile ist am Text der Option ausgerichtet, mit Statuspunkt und kleinem „Verbinden …“-Knopf; die Konten erscheinen als Liste mit Trennlinien und „+ Konto hinzufügen“ als letzte Zeile, passend dazu die Box unter „Allgemein“.
 
