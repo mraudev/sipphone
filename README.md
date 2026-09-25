@@ -7,7 +7,7 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 ## Funktionen
 
 - **Mehrere SIP-Konten gleichzeitig** (z. B. Firma und privat), Anmeldung über UDP mit Digest-Authentifizierung (Passwort oder HA1-Hash). Beim Wählen ist das Konto auswählbar, bei Anrufen, im Verlauf und in Benachrichtigungen steht, über welches Konto es läuft
-- **Telefonieren** ein- und ausgehend, Audio wahlweise mit Opus (HD, Fullband, robust gegen Paketverluste), G.722 (HD, Breitband bis 7 kHz) oder G.711 (PCMA/PCMU) – der beste von der Anlage unterstützte Codec wird automatisch gewählt; Stummschalten im Gespräch
+- **Telefonieren** ein- und ausgehend, Audio wahlweise mit Opus (HD, Fullband, robust gegen Paketverluste), G.722 (HD, Breitband bis 7 kHz) oder G.711 (PCMA/PCMU) – der beste von der Anlage unterstützte Codec wird automatisch gewählt; Stummschalten im Gespräch; am Gesprächsende ein kurzer Auflege-Ton im Headset
 - **Halten und Weiterleiten**: Gespräch halten (die Anlage spielt der Gegenstelle Wartemusik), blind weiterleiten oder mit Rückfrage weiterleiten (erst mit dem Ziel sprechen, dann verbinden) – jeweils an Nummer oder Kontakt mit Vorschlägen
 - **Tastentöne (DTMF)** im Gespräch über Tastenfeld oder Tastatur – per RFC 4733 (telephone-event), sonst SIP INFO
 - **Getrennte Audiogeräte** für Mikrofon, Gespräch und Klingelton – mit Test-Knöpfen und Mikrofonpegel; die Rausch-/Echounterdrückung fürs Mikrofon ist abschaltbar

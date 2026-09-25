@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.23.0
+- **Auflege-Ton:** Endet ein verbundenes Gespräch – egal ob die Gegenstelle oder du auflegst –, kommt im Headset (Gesprächsgerät) ein kurzer Ton aus drei absteigenden Tönen. Bei verpassten oder abgelehnten Anrufen ertönt er nicht.
+
 ## 1.22.2
 - **Headset-Mikrofon mit Jabra-Softphone-Integration:** Die App meldet dem Headset des Gesprächs-Geräts jetzt immer „im Gespräch“ (Off-Hook) – unabhängig von der Option zur Rufannahme per Knopf. Der Jabra Link 390 gibt mit eingeschalteter Softphone-Integration das Mikrofon erst dann frei; vorher hörte die Gegenstelle nichts. Klingeln am Headset und Annehmen per Knopf bleiben optional.
 - Bei Gesprächs-Gerät „Systemstandard“ wird das tatsächliche Windows-Standardgerät erkannt (vorher wurde das erste Gerät der Liste angenommen).

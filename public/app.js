@@ -1082,6 +1082,8 @@ function stopMic() {
 // Einschwingzeit, dann ausklingend (`decay`) oder gehalten mit Ausklang (`release`); optional Obertöne
 // ([Verhältnis, Anteil]), Chor (Verstimmung in Cent) und Filter. Noten: [Hz oder Notenname, Start s, Dauer s].
 const RINGBACK = { period: 5, voices: [{ wave: 'sine', attack: 0.015, release: 0.03, gain: 0.12, notes: [[425, 0, 1]] }] };
+// Gespräch beendet: drei kurze, absteigende Töne im Headset, einmalig (`once`).
+const HANGUP = { period: 0.8, once: true, voices: [{ wave: 'sine', attack: 0.01, release: 0.04, gain: 0.15, notes: [[659.25, 0, 0.14], [554.37, 0.2, 0.14], [440, 0.4, 0.22]] }] };
 const RINGTONES = {
   standard: { name: 'Standard (Dreiklang)', period: 2.4, voices: [
     { wave: 'sine', attack: 0.015, release: 0.03, gain: 0.25, notes: [[784, 0, 0.14], [988, 0.16, 0.14], [1175, 0.32, 0.22], [784, 0.8, 0.14], [988, 0.96, 0.14], [1175, 1.12, 0.22]] }] },
@@ -1202,7 +1204,7 @@ function playTone(kind) {
   if (tone && tone.kind === kind) return;
   stopTone();
   if (!audio) return;
-  const spec = kind === 'ring' ? ringSpec() : RINGBACK;
+  const spec = kind === 'ring' ? ringSpec() : kind === 'hangup' ? HANGUP : RINGBACK;
   tone = { kind, oscillators: [], timers: [], outs: [] };
   for (const ctx of toneContexts(kind)) {
     const out = ctx.createGain();
@@ -1226,7 +1228,12 @@ function playTone(kind) {
       });
     };
     burst();
-    tone.timers.push(setInterval(burst, spec.period * 1000));
+    if (spec.once) {
+      const current = tone;
+      tone.timers.push(setTimeout(() => tone === current && stopTone(), spec.period * 1000));
+    } else {
+      tone.timers.push(setInterval(burst, spec.period * 1000));
+    }
   }
 }
 
@@ -1255,7 +1262,7 @@ function updateAudio() {
   if (call && call.state === 'incoming') playTone('ring');
   else if (consult && consult.state === 'ringing' && !consult.earlyMedia) playTone('ringback');
   else if (!consult && call && call.state === 'ringing' && !call.earlyMedia) playTone('ringback');
-  else stopTone();
+  else if (!tone || tone.kind !== 'hangup') stopTone(); // Auflege-Ton ausklingen lassen
 
   if (!call && audio) audio.node.port.postMessage('reset');
 
@@ -1834,8 +1841,10 @@ navigator.mediaDevices.addEventListener('devicechange', async () => {
 setInterval(updateCallStatus, 1000);
 
 window.phone.onState((s) => {
+  const wasTalking = !!state.call && state.call.state === 'active'; // nur verbundene Gespräche, nicht verpasste
   state = s;
   render();
+  if (wasTalking && !s.call) playTone('hangup'); // hörbares Zeichen: Gespräch ist beendet
 });
 window.phone.onEnded((reason) => toast(reason));
 window.phone.onInfo((text) => toast(text));
