@@ -857,6 +857,69 @@ function renderContacts() {
       : 'Noch keine Kontakte. Mit „Import“ als CSV übernehmen oder mit + anlegen.';
 }
 
+// --- Sicherung (verschlüsselter Export/Import aller Daten) ---
+
+let backupMode = null; // 'export' | 'import'
+
+function openBackupDialog(mode, file = '') {
+  backupMode = mode;
+  const f = $('backupForm');
+  f.reset();
+  const exporting = mode === 'export';
+  $('backupTitle').textContent = exporting ? 'Sicherung exportieren' : 'Sicherung importieren';
+  $('backupText').textContent = exporting
+    ? 'Speichert Konten (samt Passwörtern), Kontakte, Kurzwahl, Verlauf, Klingelton und Einstellungen verschlüsselt in eine Datei – die Audiogeräte nicht, die sind je PC verschieden. Ohne das Passwort lässt sich die Datei nicht öffnen; ein vergessenes Passwort kann niemand wiederherstellen.'
+    : `„${file}“ ersetzt Konten, Kontakte, Kurzwahl, Verlauf, Klingelton und Einstellungen auf diesem PC. Die Audiogeräte bleiben, wie sie sind.`;
+  $('backupConfirmRow').hidden = !exporting;
+  $('backupSubmit').textContent = exporting ? 'Exportieren' : 'Importieren';
+  $('backupError').hidden = true;
+  $('backupDialog').showModal();
+  f.elements.password.focus();
+}
+
+function showBackupError(text) {
+  $('backupError').textContent = text;
+  $('backupError').hidden = false;
+}
+
+async function submitBackup(e) {
+  e.preventDefault();
+  const f = $('backupForm');
+  const password = f.elements.password.value;
+  if (password.length < 8) return showBackupError('Das Passwort braucht mindestens 8 Zeichen.');
+  if (backupMode === 'export' && password !== f.elements.confirm.value) return showBackupError('Die Passwörter stimmen nicht überein.');
+  const submit = $('backupSubmit');
+  const label = submit.textContent;
+  submit.disabled = true;
+  submit.textContent = backupMode === 'export' ? 'Verschlüssele …' : 'Entschlüssele …';
+  try {
+    if (backupMode === 'export') {
+      const res = await window.phone.exportBackup(password);
+      if (!res) return; // Speichern abgebrochen – Dialog bleibt offen
+      if (res.error) return showBackupError(res.error);
+      $('backupDialog').close();
+      toast(`Sicherung gespeichert: ${res.file}`);
+    } else {
+      const res = await window.phone.importBackup(password);
+      if (res.error) return showBackupError(res.error);
+      // Alles neu laden, damit Oberfläche, Klingelton und Optionen zur Sicherung passen.
+      try {
+        sessionStorage.setItem('sipphone.toast', `Sicherung importiert: ${res.accounts} ${res.accounts === 1 ? 'Konto' : 'Konten'}, ${res.contacts} ${res.contacts === 1 ? 'Kontakt' : 'Kontakte'}`);
+      } catch {}
+      location.reload();
+    }
+  } finally {
+    submit.disabled = false;
+    submit.textContent = label;
+  }
+}
+
+async function startImportBackup() {
+  if (state.call) return toast('Während eines Gesprächs nicht möglich.', true);
+  const res = await window.phone.chooseBackup();
+  if (res) openBackupDialog('import', res.file);
+}
+
 // --- Kurzwahl (Besetztlampenfeld) ---
 
 const PRESENCE_LABELS = { idle: 'frei', ringing: 'klingelt', busy: 'besetzt', offline: 'nicht erreichbar', dnd: 'Nicht stören', away: 'abwesend', unknown: 'kein Status' };
@@ -1800,6 +1863,11 @@ $('updateNotesToggle').onclick = () => {
   $('updateNotesToggle').textContent = open ? 'Weniger anzeigen' : 'Was ist neu?';
 };
 $('showLog').onclick = () => window.phone.openLog();
+$('exportBackup').onclick = () => openBackupDialog('export');
+$('importBackup').onclick = startImportBackup;
+$('backupForm').onsubmit = submitBackup;
+$('backupCancel').onclick = () => $('backupDialog').close();
+$('backupDialog').addEventListener('close', () => $('backupForm').reset()); // Passwort nicht im Formular stehen lassen
 for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
 $('contactSearch').oninput = renderContacts;
 $('addContact').onclick = () => openContactDialog();
@@ -1993,4 +2061,11 @@ window.phone.onAudioFormat((fmt) => {
   renderFavorites();
   render();
   initHeadset();
+  try { // Meldung nach dem Neuladen (z. B. nach dem Import einer Sicherung)
+    const pending = sessionStorage.getItem('sipphone.toast');
+    if (pending) {
+      sessionStorage.removeItem('sipphone.toast');
+      toast(pending);
+    }
+  } catch {}
 })();

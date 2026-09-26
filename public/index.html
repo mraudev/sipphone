@@ -326,6 +326,13 @@
         <div class="card-list">
           <div class="card-row"><span class="muted">Version</span><span id="appVersion"></span></div>
           <div class="card-row"><span class="muted">Protokoll (Fehlersuche)</span><button type="button" id="showLog" class="text-btn small-btn">Anzeigen</button></div>
+          <div class="card-row">
+            <span class="muted" title="Verschlüsselt, zum Übertragen auf ein anderes SIP Phone">Sicherung</span>
+            <span class="row-btns">
+              <button type="button" id="exportBackup" class="text-btn small-btn" title="Konten, Kontakte, Kurzwahl, Verlauf und Einstellungen verschlüsselt in eine Datei speichern">Export …</button>
+              <button type="button" id="importBackup" class="text-btn small-btn" title="Sicherung von einem anderen SIP Phone einspielen">Import …</button>
+            </span>
+          </div>
         </div>
       </section>
       <div class="dialog-actions">
@@ -384,6 +391,21 @@
         <span class="spacer"></span>
         <button type="button" id="favCancel" class="text-btn">Abbrechen</button>
         <button type="submit" class="text-btn primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="backupDialog">
+    <form id="backupForm" class="account-form" autocomplete="off">
+      <h2 id="backupTitle">Sicherung</h2>
+      <p id="backupText" class="muted small"></p>
+      <label>Passwort<input name="password" type="password" autocomplete="new-password"></label>
+      <label id="backupConfirmRow">Passwort wiederholen<input name="confirm" type="password" autocomplete="new-password"></label>
+      <p id="backupError" class="reason" hidden></p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button type="button" id="backupCancel" class="text-btn">Abbrechen</button>
+        <button type="submit" id="backupSubmit" class="text-btn primary">OK</button>
       </div>
     </form>
   </dialog>

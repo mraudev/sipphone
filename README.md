@@ -25,6 +25,7 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
 - **Annehmen per Headset-Knopf** (optional): Während es klingelt, signalisiert die App dem Headset den Anruf und ein Druck auf den Rufannahme-/Gesprächsknopf nimmt an; im Gespräch legt derselbe Knopf auf. Nutzt die Standard-HID-Anrufsteuerung (getestet mit Jabra); einmalig unter *Einstellungen → Anrufe* *Headset verbinden*. Bei Jabra muss dafür in Jabra Direct die Softphone-Integration eingeschaltet sein. Unabhängig von dieser Option meldet die App dem Headset des Gesprächs-Geräts „im Gespräch“ – Jabra-Dongles mit Softphone-Integration geben erst dann das Mikrofon frei
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
+- **Verschlüsselte Sicherung**: *Einstellungen → Allgemein → Sicherung* speichert Konten (samt Passwörtern und CTI-Angaben), Kontakte, Kurzwahl, Verlauf, eigenen Klingelton und Einstellungen in eine mit einem frei gewählten Passwort verschlüsselte Datei (`.sipphone`, AES-256-GCM, Schlüssel per scrypt). *Import* spielt sie auf einem anderen SIP Phone ein und ersetzt dort diese Daten; die Audiogeräte bleiben, weil sie je PC verschieden sind. Ohne das Passwort ist die Datei nicht lesbar – ein vergessenes Passwort lässt sich nicht wiederherstellen
 - **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim Einrichten lässt sich ein Konto aus einer PhonerLite-`sipper.ini` übernehmen (alle Felder außer dem Passwort, das dort verschlüsselt liegt)
 
 ## Installation
@@ -90,6 +91,7 @@ $env:SIP_TRACE='1'; npm start
 | `src/rtp.js`, `src/sdp.js` | RTP mit G.711-Codec, SDP-Aushandlung |
 | `src/config.js`, `src/history.js` | Einstellungen und Gesprächsverlauf |
 | `src/g722.js` | G.722-Codec (Breitband) |
+| `src/backup.js` | Verschlüsselte Sicherung (Export/Import) |
 | `src/cti.js` | Optionale Anbindung an den CTI-Server der Anlage (TCP, `<Typ>-<JSON> `) |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf die Codec-Rate (8/16/48 kHz) um |
 

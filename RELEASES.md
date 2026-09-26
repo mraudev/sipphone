@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.25.0
+- **Verschlüsselte Sicherung:** Unter *Einstellungen → Allgemein → Sicherung* lassen sich Konten (samt Passwörtern und CTI-Angaben), Kontakte, Kurzwahl, Verlauf, eigener Klingelton und Einstellungen in eine Datei exportieren – verschlüsselt mit einem frei gewählten Passwort (AES-256-GCM, Schlüssel per scrypt). *Import* spielt die Sicherung auf einem anderen SIP Phone ein und ersetzt dort diese Daten; die Audiogeräte bleiben unverändert, weil sie je PC verschieden sind. Ein vergessenes Passwort lässt sich nicht wiederherstellen.
+
 ## 1.24.0
 - **CTI-Server (optional je Konto):** Hat die Telefonanlage einen CTI-Server, lässt er sich beim Konto unter *CTI-Server (optional)* eintragen (Server, Port – Standard 1337 – und Windows-Anmeldename). Ohne Eintrag ändert sich nichts.
   - **Nicht stören** und **Abwesend** per Knopf oben rechts schalten; der Stand steht auch in der Statuszeile. Umschalten an anderer Stelle (z. B. im Click-to-Dial-Tool) wird übernommen.

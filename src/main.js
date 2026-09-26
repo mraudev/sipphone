@@ -14,6 +14,7 @@ const { importOutlookContacts } = require('./outlook');
 const { readContactsCsv } = require('./csvimport');
 const { contactsToCsv } = require('./csvexport');
 const { CtiClient } = require('./cti');
+const { encryptBackup, decryptBackup, MIN_PASSWORD } = require('./backup');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const APP_ORIGIN = 'app://phone';
@@ -48,6 +49,7 @@ let updateReady = null; // Version eines heruntergeladenen Updates
 let updateNotes = ''; // Beschreibung des Updates (GitHub-Release-Text)
 let logFile = null;
 let screenLocked = false;
+let backupFile = null; // gewählte Sicherung, bis das Passwort eingegeben ist
 
 const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
@@ -547,6 +549,99 @@ function ringtoneData() {
   }
 }
 
+// --- Sicherung: alles verschlüsselt exportieren und auf einem anderen SIP Phone wieder einspielen ---
+
+const BACKUP_FILTERS = [{ name: 'SIP-Phone-Sicherung', extensions: ['sipphone'] }];
+
+async function exportBackup(password) {
+  if (String(password || '').length < MIN_PASSWORD) return { error: `Das Passwort braucht mindestens ${MIN_PASSWORD} Zeichen.` };
+  const res = await dialog.showSaveDialog(win, {
+    title: 'Sicherung speichern',
+    defaultPath: `SIP-Phone-Sicherung-${new Date().toISOString().slice(0, 10)}.sipphone`,
+    filters: BACKUP_FILTERS,
+  });
+  if (res.canceled || !res.filePath) return null;
+  try {
+    const { audio, ...settings } = cfg; // Audiogeräte heißen auf jedem PC anders -> bleiben außen vor
+    const ringtone = ringtoneData();
+    const payload = {
+      app: 'SIP Phone',
+      version: app.getVersion(),
+      createdAt: new Date().toISOString(),
+      // Zugangsdaten im Klartext – geschützt durch die Verschlüsselung der Sicherung. Die DPAPI-Felder
+      // (*Enc) taugen auf einem anderen PC nicht.
+      config: { ...settings, accounts: cfg.accounts.map(({ passwordEnc, ha1Enc, ...a }) => a) },
+      contacts: contacts.entries,
+      history: history.entries,
+      ringtone: ringtone ? { name: ringtone.name, ext: path.extname(cfg.ringtone.file).slice(1), data: ringtone.data.toString('base64') } : null,
+    };
+    fs.writeFileSync(res.filePath, await encryptBackup(payload, password));
+    console.log(`Sicherung exportiert: Konten ${cfg.accounts.length}, Kontakte ${contacts.entries.length}, Verlaufseinträge ${history.entries.length}`);
+    return { file: path.basename(res.filePath) };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
+async function chooseBackup() {
+  const res = await dialog.showOpenDialog(win, { title: 'Sicherung wählen', filters: BACKUP_FILTERS, properties: ['openFile'] });
+  if (res.canceled || !res.filePaths.length) return null;
+  backupFile = res.filePaths[0];
+  return { file: path.basename(backupFile) };
+}
+
+// Ersetzt Konten, Kontakte, Kurzwahl, Verlauf und Einstellungen durch die Sicherung (Audiogeräte bleiben).
+async function importBackup(password) {
+  if (!backupFile) return { error: 'Bitte zuerst eine Sicherung wählen.' };
+  if (phone.call) return { error: 'Während eines Gesprächs nicht möglich.' };
+  let data;
+  try {
+    data = await decryptBackup(fs.readFileSync(backupFile), password);
+  } catch (err) {
+    return { error: err.message };
+  }
+  if (!data || !data.config || !Array.isArray(data.config.accounts)) return { error: 'Die Sicherung ist unvollständig.' };
+  backupFile = null;
+
+  for (const id of phone.lines.map((l) => l.account.id)) await phone.removeAccount(id); // meldet ab
+  const next = normalizeConfig({ ...data.config, audio: cfg.audio });
+  if (cfg.ringtone) fs.rmSync(ringtonePath(), { force: true });
+  next.ringtone = null;
+  const rt = data.ringtone;
+  if (rt && RINGTONE_TYPES.includes(rt.ext) && typeof rt.data === 'string') {
+    const buf = Buffer.from(rt.data, 'base64');
+    if (buf.length <= RINGTONE_MAX_BYTES) {
+      const file = `ringtone.${rt.ext}`;
+      fs.writeFileSync(path.join(app.getPath('userData'), file), buf);
+      next.ringtone = { file, name: String(rt.name || file) };
+    }
+  }
+  cfg = next;
+  persist(); // Zugangsdaten auf diesem PC wieder per DPAPI verschlüsselt
+
+  contacts.entries = (Array.isArray(data.contacts) ? data.contacts : [])
+    .filter((c) => c && typeof c.name === 'string' && Array.isArray(c.numbers))
+    .map((c) => ({
+      id: String(c.id || crypto.randomUUID()),
+      name: c.name,
+      company: String(c.company || ''),
+      numbers: c.numbers.filter(Boolean).map((n) => ({ label: String(n.label || ''), number: String(n.number || '') })),
+      source: String(c.source || 'sicherung'),
+    }));
+  contacts.save();
+  history.entries = (Array.isArray(data.history) ? data.history : []).filter((e) => e && typeof e.remoteUri === 'string').slice(0, 200);
+  history.save();
+
+  for (const ext of Object.keys(presence)) delete presence[ext];
+  nativeTheme.themeSource = ['light', 'dark', 'system'].includes(cfg.theme) ? cfg.theme : 'system';
+  phone.setHdVoice(cfg.hdVoice);
+  for (const account of cfg.accounts) await phone.addAccount(account);
+  phone.setFavorites(cfg.favorites.map((f) => f.number));
+  syncCti();
+  console.log(`Sicherung importiert: Konten ${cfg.accounts.length}, Kontakte ${contacts.entries.length}, Verlaufseinträge ${history.entries.length}`);
+  return { accounts: cfg.accounts.length, contacts: contacts.entries.length };
+}
+
 // Updates kommen aus den GitHub-Releases (build.publish in package.json). Nur in der installierten App.
 function setupUpdater() {
   if (!app.isPackaged) return;
@@ -736,6 +831,9 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:importOutlook', () => importOutlook());
     ipcMain.handle('phone:importCsv', () => importCsv());
     ipcMain.handle('phone:exportCsv', () => exportCsv());
+    ipcMain.handle('phone:exportBackup', (_e, password) => exportBackup(password));
+    ipcMain.handle('phone:chooseBackup', () => chooseBackup());
+    ipcMain.handle('phone:importBackup', (_e, password) => importBackup(password));
     ipcMain.handle('phone:favorites', () => ({ list: cfg.favorites, presence }));
     ipcMain.handle('phone:cti', () => ctiView());
     ipcMain.handle('phone:saveFavorites', (_e, list) => {
