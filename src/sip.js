@@ -733,7 +733,7 @@ class SipUA extends EventEmitter {
     call.remote = `<${uri}>`;
     call.remoteTarget = uri;
     this.emitState();
-    await call.rtp.open();
+    await call.rtp.open(this.localIp);
     if (call.ended) return;
     this.sendInvite(call);
   }
@@ -1058,7 +1058,7 @@ class SipUA extends EventEmitter {
     b.remote = `<${uri}>`;
     b.remoteTarget = uri;
     this.emitState();
-    await b.rtp.open();
+    await b.rtp.open(this.localIp);
     if (b.ended) return;
     this.sendInvite(b);
   }
@@ -1200,7 +1200,7 @@ class SipUA extends EventEmitter {
     call.cseq = Math.floor(Math.random() * 1000);
     call.invite = req;
     call.rinfo = rinfo;
-    await call.rtp.open();
+    await call.rtp.open(this.localIp);
     if (call.ended) return;
     if (req.body) {
       this.applyRemoteSdp(call, req.body);

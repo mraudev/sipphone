@@ -76,14 +76,14 @@ function ulawToLinear(uval) {
 const ALAW_TABLE = Int16Array.from({ length: 256 }, (_, i) => alawToLinear(i));
 const ULAW_TABLE = Int16Array.from({ length: 256 }, (_, i) => ulawToLinear(i));
 
-function bindSocket(sock, port) {
+function bindSocket(sock, port, address) {
   return new Promise((resolve, reject) => {
     const onError = (err) => {
       sock.removeListener('error', onError);
       reject(err);
     };
     sock.once('error', onError);
-    sock.bind(port, () => {
+    sock.bind(port, address, () => {
       sock.removeListener('error', onError);
       resolve();
     });
@@ -126,12 +126,17 @@ class RtpSession extends EventEmitter {
 
   // RTP auf einem geraden Port, RTCP auf Port+1 (so erwartet es Asterisk). Klappt Port+1 nicht, wird
   // ohne RTCP weitergemacht – dann fehlt nur die Rückmeldung der Anlage, das Gespräch läuft normal.
-  async open() {
+  // localIp: nur auf der Adresse lauschen, über die die Anlage erreichbar ist (z. B. die VPN-Adresse).
+  // Auf allen Netzen zu lauschen ließ die Windows-Firewall bei Gesprächen nach dem Heimnetz fragen.
+  async open(localIp) {
     for (let attempt = 0; attempt < 8; attempt++) {
       const rtp = dgram.createSocket('udp4');
       try {
-        await bindSocket(rtp, 0);
-      } catch {
+        await bindSocket(rtp, 0, localIp);
+      } catch (err) {
+        // Adresse gibt es nicht mehr (z. B. VPN neu verbunden, noch nicht neu angemeldet): wie früher
+        // auf allen Netzen lauschen, damit das Gespräch trotzdem zustande kommt.
+        if (localIp && err.code === 'EADDRNOTAVAIL') localIp = undefined;
         continue;
       }
       const port = rtp.address().port;
@@ -141,7 +146,7 @@ class RtpSession extends EventEmitter {
       }
       const rtcp = dgram.createSocket('udp4');
       try {
-        await bindSocket(rtcp, port + 1);
+        await bindSocket(rtcp, port + 1, localIp);
       } catch {
         rtp.close();
         rtcp.close();
@@ -160,7 +165,7 @@ class RtpSession extends EventEmitter {
     // Kein Paar frei bekommen: RTP allein, ohne RTCP-Auswertung.
     this.socket = dgram.createSocket('udp4');
     this.socket.on('message', (buf, rinfo) => this.onPacket(buf, rinfo));
-    await bindSocket(this.socket, 0);
+    await bindSocket(this.socket, 0, localIp);
     this.port = this.socket.address().port;
     console.log(`RTP-Port: ${this.port} (kein RTCP-Port verfügbar)`);
   }

@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.25.1
+- **Keine Firewall-Abfrage mehr bei Gesprächen:** Die Sprach-Ports (RTP/RTCP) lauschen nur noch auf der Adresse, über die die Telefonanlage erreichbar ist – im Homeoffice die VPN-Adresse, im Büro die Adresse im Firmennetz. Vorher lauschten sie auf allen Netzen, und Windows fragte bei manchen Gesprächen nach einer Freigabe fürs Heimnetz. Ist die Adresse inzwischen weg (z. B. VPN neu verbunden), lauscht die App wie bisher auf allen Netzen, damit das Gespräch trotzdem zustande kommt.
+
 ## 1.25.0
 - **Verschlüsselte Sicherung:** Unter *Einstellungen → Allgemein → Sicherung* lassen sich Konten (samt Passwörtern und CTI-Angaben), Kontakte, Kurzwahl, Verlauf, eigener Klingelton und Einstellungen in eine Datei exportieren – verschlüsselt mit einem frei gewählten Passwort (AES-256-GCM, Schlüssel per scrypt). *Import* spielt die Sicherung auf einem anderen SIP Phone ein und ersetzt dort diese Daten; die Audiogeräte bleiben unverändert, weil sie je PC verschieden sind. Ein vergessenes Passwort lässt sich nicht wiederherstellen.
 
