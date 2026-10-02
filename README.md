@@ -92,7 +92,7 @@ $env:SIP_TRACE='1'; npm start
 | `src/config.js`, `src/history.js` | Einstellungen und Gesprächsverlauf |
 | `src/g722.js` | G.722-Codec (Breitband) |
 | `src/backup.js` | Verschlüsselte Sicherung (Export/Import) |
-| `src/cti.js` | Optionale Anbindung an den CTI-Server der Anlage (TCP, `<Typ>-<JSON> `) |
+| `src/cti.js` | Optionale Anbindung an den CTI-Server der Anlage (TCP, `<Typ>-<JSON>\0`) |
 | `public/` | Oberfläche; `audio-worklet.js` setzt Browser-Audio auf die Codec-Rate (8/16/48 kHz) um |
 
 ## Updates
