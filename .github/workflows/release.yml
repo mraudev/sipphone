@@ -36,7 +36,7 @@ jobs:
             gh release delete "$tag" --yes --repo "$GITHUB_REPOSITORY"
           done
           gh release create "$tag" \
-            dist/SIP-Phone-Setup-*.exe dist/SIP-Phone-Setup-*.exe.blockmap dist/SIP-Phone-*-portable.exe dist/latest.yml \
+            dist/mrphone-Setup-*.exe dist/mrphone-Setup-*.exe.blockmap dist/mrphone-*-portable.exe dist/latest.yml \
             --title "$tag" --generate-notes --repo "$GITHUB_REPOSITORY"
 
   # Linux-Pakete bauen und an das Release des Windows-Jobs hängen (erst danach, damit es genau ein Release gibt).
@@ -57,5 +57,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "$GITHUB_REF_NAME" \
-            dist/SIP-Phone-*.AppImage dist/sip-phone_*.deb dist/latest-linux.yml \
+            dist/mrphone-*.AppImage dist/mrphone_*.deb dist/latest-linux.yml \
             --clobber --repo "$GITHUB_REPOSITORY"

@@ -215,9 +215,9 @@ function render() {
     $('holdBtn').classList.toggle('active', !!call.held);
     $('holdBtn').title = call.held ? 'Gespräch zurückholen' : 'Halten';
     if (call.state !== 'active' && dtmfOpen) setDtmfOpen(false);
-    document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'SIP Phone';
+    document.title = call.state === 'incoming' ? `📞 ${name} ruft an` : 'mrphone';
   } else {
-    document.title = 'SIP Phone';
+    document.title = 'mrphone';
     $('callView').classList.remove('conference');
     $('confPanel').hidden = true;
     if (muted) setMuted(false); // nächstes Gespräch beginnt nicht stumm

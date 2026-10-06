@@ -1,4 +1,4 @@
-# SIP Phone
+# mrphone
 
 Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
 
@@ -15,22 +15,22 @@ Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwi
 - **Klingelton wählbar**: Standard-Dreiklang, zehn weitere eingebaute Töne (einfach und mehrstimmig) oder eine eigene Datei (WAV, MP3, OGG, M4A, FLAC); auf Wunsch klingelt es zusätzlich im Headset (gleichzeitig auf Klingel- und Gesprächsgerät)
 - **Einstellungen in Reitern** (Audio, Anrufe, Konten, Allgemein); ein Klick auf die Statuszeile öffnet direkt die Konten
 - **Kurzwahl mit Besetztlampenfeld (BLF)**: eigener Reiter mit häufigen Nebenstellen/Nummern zum Wählen per Klick; ein Statuspunkt zeigt *frei/klingelt/besetzt*, sofern die Anlage den Status liefert (siehe Hinweise zur Telefonanlage). Nummern aus dem Telefonbuch lassen sich per Stern direkt auf die Kurzwahl legen
-- **CTI-Server (optional je Konto)**: Hat die Telefonanlage einen CTI-Server, zeigt und schaltet SIP Phone *Nicht stören* und *Abwesend* (Knöpfe oben rechts, Stand auch in der Statuszeile; Umschalten an anderer Stelle wird übernommen), die Kurzwahl zeigt zusätzlich *Nicht stören*, *abwesend* und *nicht erreichbar*, und in einer Konferenz steht im Gespräch die Liste der Teilnehmer (Eingeladene mit „wird angerufen …“). Einzutragen beim Konto unter *CTI-Server (optional)*: Server, Port (Standard 1337) und Windows-Anmeldename
+- **CTI-Server (optional je Konto)**: Hat die Telefonanlage einen CTI-Server, zeigt und schaltet mrphone *Nicht stören* und *Abwesend* (Knöpfe oben rechts, Stand auch in der Statuszeile; Umschalten an anderer Stelle wird übernommen), die Kurzwahl zeigt zusätzlich *Nicht stören*, *abwesend* und *nicht erreichbar*, und in einer Konferenz steht im Gespräch die Liste der Teilnehmer (Eingeladene mit „wird angerufen …“). Einzutragen beim Konto unter *CTI-Server (optional)*: Server, Port (Standard 1337) und Windows-Anmeldename
 - **Gesprächsverlauf** mit verpassten Anrufen und Rückruf-Knopf; unbekannte Anrufer lassen sich mit einem Klick als Kontakt ins Telefonbuch übernehmen
 - **Vorschläge beim Wählen**: Beim Eingeben einer Nummer oder eines Namens gleicht die App mit Telefonbuch und Verlauf ab und bietet passende Treffer zum Direktwählen an
 - **Telefonbuch** mit Suche und Anruf per Klick; Import direkt aus dem klassischen Outlook oder als CSV-Export (neues Outlook, Outlook.com) sowie Export des gesamten Telefonbuchs als CSV (für Excel oder zur Sicherung). Namen aus dem Telefonbuch erscheinen bei Anrufen, im Verlauf und in Benachrichtigungen
 - **Heller und dunkler Modus** (Einstellung „Darstellung"), standardmäßig nach Systemvorgabe
 - **Tray-Betrieb**: Minimieren und Schließen legen die App ins Tray, sie bleibt erreichbar
-- **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich SIP Phone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her. Der Knopf mit dem Aktualisieren-Symbol oben rechts baut die Verbindung jederzeit von Hand neu auf
+- **Büro und Homeoffice**: Solange der PC gesperrt ist, meldet sich mrphone ab (abschaltbar). Meldet sich dasselbe Konto an einem anderen Gerät an, holt die App die Anmeldung nicht zurück – *Übernehmen* in der Statuszeile holt sie wieder her. Der Knopf mit dem Aktualisieren-Symbol oben rechts baut die Verbindung jederzeit von Hand neu auf
 - **Windows-Benachrichtigungen** bei eingehenden Anrufen mit *Annehmen*/*Ablehnen* und bei verpassten Anrufen; ob das Fenster bei einem Anruf zusätzlich in den Vordergrund kommt, ist einstellbar
 - **Annehmen per Headset-Knopf** (optional): Während es klingelt, signalisiert die App dem Headset den Anruf und ein Druck auf den Rufannahme-/Gesprächsknopf nimmt an; im Gespräch legt derselbe Knopf auf. Nutzt die Standard-HID-Anrufsteuerung (getestet mit Jabra); einmalig unter *Einstellungen → Anrufe* *Headset verbinden*. Bei Jabra muss dafür in Jabra Direct die Softphone-Integration eingeschaltet sein. Unabhängig von dieser Option meldet die App dem Headset des Gesprächs-Geräts „im Gespräch“ – Jabra-Dongles mit Softphone-Integration geben erst dann das Mikrofon frei
 - **Nachgemeldete Gegenstelle**: zeigt bei Click-to-Dial oder Weiterleitungen, mit wem man tatsächlich spricht
-- **Verschlüsselte Sicherung**: *Einstellungen → Allgemein → Sicherung* speichert Konten (samt Passwörtern und CTI-Angaben), Kontakte, Kurzwahl, Verlauf, eigenen Klingelton und Einstellungen in eine mit einem frei gewählten Passwort verschlüsselte Datei (`.sipphone`, AES-256-GCM, Schlüssel per scrypt). *Import* spielt sie auf einem anderen SIP Phone ein und ersetzt dort diese Daten; die Audiogeräte bleiben, weil sie je PC verschieden sind. Ohne das Passwort ist die Datei nicht lesbar – ein vergessenes Passwort lässt sich nicht wiederherstellen
+- **Verschlüsselte Sicherung**: *Einstellungen → Allgemein → Sicherung* speichert Konten (samt Passwörtern und CTI-Angaben), Kontakte, Kurzwahl, Verlauf, eigenen Klingelton und Einstellungen in eine mit einem frei gewählten Passwort verschlüsselte Datei (`.mrphone`, AES-256-GCM, Schlüssel per scrypt). *Import* spielt sie auf einem anderen mrphone ein und ersetzt dort diese Daten; die Audiogeräte bleiben, weil sie je PC verschieden sind. Ohne das Passwort ist die Datei nicht lesbar – ein vergessenes Passwort lässt sich nicht wiederherstellen
 - **Konten verwalten** in der App (hinzufügen, bearbeiten, löschen); beim Einrichten lässt sich ein Konto aus einer PhonerLite-`sipper.ini` übernehmen (alle Felder außer dem Passwort, das dort verschlüsselt liegt)
 
 ## Installation
 
-`SIP-Phone-Setup-<version>.exe` von der [Release-Seite](https://github.com/mraudev/sipphone/releases) laden (oder selbst bauen, siehe unten) und ausführen. Das Setup installiert wahlweise nur für den aktuellen Benutzer (ohne Adminrechte) oder für alle Benutzer.
+`mrphone-Setup-<version>.exe` von der [Release-Seite](https://github.com/mraudev/sipphone/releases) laden (oder selbst bauen, siehe unten) und ausführen. Das Setup installiert wahlweise nur für den aktuellen Benutzer (ohne Adminrechte) oder für alle Benutzer.
 
 Beim ersten Start:
 
@@ -41,14 +41,14 @@ Beim ersten Start:
 
 Ebenfalls auf der [Release-Seite](https://github.com/mraudev/sipphone/releases), für x86-64:
 
-- **AppImage** (`SIP-Phone-<version>.AppImage`) – ohne Installation, aktualisiert sich selbst. Braucht `libfuse2` (Ubuntu 24.04: `libfuse2t64`):
+- **AppImage** (`mrphone-<version>.AppImage`) – ohne Installation, aktualisiert sich selbst. Braucht `libfuse2` (Ubuntu 24.04: `libfuse2t64`):
   ```bash
-  chmod +x SIP-Phone-*.AppImage
-  ./SIP-Phone-*.AppImage
+  chmod +x mrphone-*.AppImage
+  ./mrphone-*.AppImage
   ```
-- **Debian/Ubuntu-Paket** (`sip-phone_<version>_amd64.deb`) – mit Startmenü-Eintrag. Neue Versionen genauso installieren (automatische Updates gibt es nur beim AppImage). Startet das AppImage unter Ubuntu 24.04 wegen der Sandbox-Beschränkung nicht, das `.deb` nehmen:
+- **Debian/Ubuntu-Paket** (`mrphone_<version>_amd64.deb`) – mit Startmenü-Eintrag. Neue Versionen genauso installieren (automatische Updates gibt es nur beim AppImage). Startet das AppImage unter Ubuntu 24.04 wegen der Sandbox-Beschränkung nicht, das `.deb` nehmen:
   ```bash
-  sudo apt install ./sip-phone_*_amd64.deb
+  sudo apt install ./mrphone_*_amd64.deb
   ```
 
 Unterschiede zu Windows:
@@ -110,7 +110,7 @@ git push --follow-tags     # GitHub Actions baut und veröffentlicht das Release
 
 ## Einstellungen und Daten
 
-Alles liegt unter `%APPDATA%\SIP Phone\` (Linux: `~/.config/SIP Phone/`):
+Alles liegt unter `%APPDATA%\SIP Phone\` (Linux: `~/.config/SIP Phone/`) – der Ordner behält den Namen aus der Zeit vor der Umbenennung in mrphone, damit vorhandene Daten erhalten bleiben:
 
 - `config.json` – Konten, Audiogeräte, Klingelton. Passwörter und HA1-Hashes werden nur verschlüsselt gespeichert (Windows DPAPI).
 - `history.json` – Gesprächsverlauf (die letzten 200 Gespräche)
@@ -128,12 +128,12 @@ Ist noch kein Konto eingerichtet, erscheint beim Start das Formular *SIP-Konto e
   - chan_sip: `sendrpid=pai` (oder `yes`), optional `rpid_update=yes`
   - PJSIP: `send_pai=yes` (oder `send_rpid=yes`)
   - FreePBX: bei der Nebenstelle *Send RPID* → *Send P-Asserted-Identity header*
-- **Eine Nebenstelle auf mehreren PCs (Büro/Homeoffice):** chan_sip merkt sich pro Nebenstelle nur ein angemeldetes Gerät, Anrufe gehen an das zuletzt angemeldete. SIP Phone fragt deshalb vor jeder Erneuerung ab, wer gerade angemeldet ist, und verdrängt ein anderes Gerät nicht („An anderem Gerät“ → *Übernehmen*). Beim Beenden oder Sperren meldet es nur die eigene Anmeldung ab – `Expires: 0` würde bei chan_sip auch die des anderen Geräts löschen.
-- **Besetztlampenfeld (Kurzwahl-Status):** SIP Phone abonniert für jede Kurzwahl den Leitungsstatus der Nebenstelle (SUBSCRIBE mit `Event: dialog`, `dialog-info+xml`). Das zeigt nur dann *frei/klingelt/besetzt*, wenn die Anlage es liefert:
+- **Eine Nebenstelle auf mehreren PCs (Büro/Homeoffice):** chan_sip merkt sich pro Nebenstelle nur ein angemeldetes Gerät, Anrufe gehen an das zuletzt angemeldete. mrphone fragt deshalb vor jeder Erneuerung ab, wer gerade angemeldet ist, und verdrängt ein anderes Gerät nicht („An anderem Gerät“ → *Übernehmen*). Beim Beenden oder Sperren meldet es nur die eigene Anmeldung ab – `Expires: 0` würde bei chan_sip auch die des anderen Geräts löschen.
+- **Besetztlampenfeld (Kurzwahl-Status):** mrphone abonniert für jede Kurzwahl den Leitungsstatus der Nebenstelle (SUBSCRIBE mit `Event: dialog`, `dialog-info+xml`). Das zeigt nur dann *frei/klingelt/besetzt*, wenn die Anlage es liefert:
   - chan_sip: `allowsubscribe=yes` (global oder beim Peer) und für die beobachteten Nebenstellen **Hints** im Wählplan, z. B. `exten => 797,hint,SIP/797` im passenden `subscribecontext`
   - PJSIP/FreePBX: BLF/Hints entsprechend aktiviert
   - Ohne Hints bleibt der Punkt grau; Wählen per Klick funktioniert trotzdem
-- **CTI-Server:** Verbindung per TCP (ohne Verschlüsselung) mit dem Windows-Anmeldenamen; der Server ordnet darüber das Telefon zu. Er lässt höchstens 6 neue Verbindungen je IP in 5 Minuten zu – SIP Phone bleibt mit Wartezeiten beim Neuverbinden darunter. Das Konferenz-Event bekommt nur, wessen Telefon selbst in der Konferenz ist.
+- **CTI-Server:** Verbindung per TCP (ohne Verschlüsselung) mit dem Windows-Anmeldenamen; der Server ordnet darüber das Telefon zu. Er lässt höchstens 6 neue Verbindungen je IP in 5 Minuten zu – mrphone bleibt mit Wartezeiten beim Neuverbinden darunter. Das Konferenz-Event bekommt nur, wessen Telefon selbst in der Konferenz ist.
 - **Umlaute in Anrufernamen:** Die App liest Namen in UTF-8 und Windows-1252. Kommt „oe“ statt „ö“ oder ein „?“ an, ist der Name bereits in der Anlage so hinterlegt und muss dort (als UTF-8) korrigiert werden – oder die Nummer steht im Telefonbuch, dessen Name dann Vorrang hat.
 
 ## Einschränkungen

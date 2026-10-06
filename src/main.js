@@ -30,6 +30,12 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: t
 // der Startmenü-Verknüpfung zu. Entwicklungsstarts bekommen eine eigene ID, sonst "kapert" electron.exe
 // die installierte App (falscher Name/Icon im Startmenü).
 app.setAppUserModelId(app.isPackaged ? 'de.rau.sipphone' : 'de.rau.sipphone.dev');
+// Datenordner bleibt "SIP Phone" (Name bis 1.25): dort liegen Konten, Kontakte, Verlauf und der Schlüssel
+// der verschlüsselten Zugangsdaten. Ohne das begänne mrphone mit einem leeren Ordner. Nur wenn der Ordner
+// nicht schon anders gesetzt ist und wirklich mrphone läuft (nie bei Selbsttests).
+if (app.getName() === 'mrphone' && app.getPath('userData') === path.join(app.getPath('appData'), 'mrphone')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'SIP Phone'));
+}
 
 let win = null;
 let tray = null;
@@ -52,6 +58,14 @@ let screenLocked = false;
 let backupFile = null; // gewählte Sicherung, bis das Passwort eingegeben ist
 
 const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const TITLEBAR_HEIGHT = 44; // eigene Titelleiste = Kopfzeile der Oberfläche (public/style.css .topbar)
+
+// Fenster-Knöpfe (Minimieren/Maximieren/Schließen) zeichnet Windows selbst – in den Farben der App.
+function titleBarOverlay() {
+  const dark = nativeTheme.shouldUseDarkColors;
+  // Durchsichtig: darunter liegt der Farbverlauf der Oberfläche, sonst entstünde eine Kante.
+  return { color: '#00000000', symbolColor: dark ? '#e8ecf3' : '#1a2332', height: TITLEBAR_HEIGHT };
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -59,9 +73,11 @@ function createWindow() {
     height: 800,
     minWidth: 360,
     minHeight: 740,
-    title: 'SIP Phone',
+    title: 'mrphone',
     icon: ICON,
     backgroundColor: '#0d1117',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: titleBarOverlay(),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -95,11 +111,15 @@ function createWindow() {
     hideToTray();
   });
   win.on('closed', () => (win = null));
+  // Hell/Dunkel gewechselt (Einstellung oder Windows): Fenster-Knöpfe mitfärben
+  const recolor = () => win && !win.isDestroyed() && win.setTitleBarOverlay(titleBarOverlay());
+  nativeTheme.on('updated', recolor);
+  win.on('closed', () => nativeTheme.removeListener('updated', recolor));
 }
 
 function createTray() {
   tray = new Tray(ICON);
-  tray.setToolTip('SIP Phone');
+  tray.setToolTip('mrphone');
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Öffnen', click: showWindow },
     { type: 'separator' },
@@ -120,10 +140,10 @@ function hideToTray() {
   if (trayHintShown) return;
   trayHintShown = true;
   if (IS_WIN) {
-    tray.displayBalloon({ icon: ICON_PNG, title: 'SIP Phone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
+    tray.displayBalloon({ icon: ICON_PNG, title: 'mrphone läuft weiter', content: 'Du bleibst erreichbar. Beenden über das Tray-Symbol.' });
   } else if (Notification.isSupported()) {
     // Tray-Sprechblasen gibt es nur unter Windows; ohne sichtbares Tray-Symbol holt ein erneuter Start das Fenster zurück.
-    new Notification({ title: 'SIP Phone läuft weiter', body: 'Du bleibst erreichbar. Wieder öffnen über das Tray-Symbol oder durch erneutes Starten.', icon: ICON_PNG }).show();
+    new Notification({ title: 'mrphone läuft weiter', body: 'Du bleibst erreichbar. Wieder öffnen über das Tray-Symbol oder durch erneutes Starten.', icon: ICON_PNG }).show();
   }
 }
 
@@ -138,7 +158,7 @@ function connectionSummary(accounts) {
 function updateTray(s) {
   if (!tray) return;
   const dnd = [...ctis.values()].some((c) => c.own && c.own.dnd);
-  tray.setToolTip(`SIP Phone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}${dnd ? ' · Nicht stören' : ''}`);
+  tray.setToolTip(`mrphone – ${s.call ? 'Im Gespräch' : connectionSummary(s.accounts)}${dnd ? ' · Nicht stören' : ''}`);
 }
 
 // Bei mehreren Konten steht in Benachrichtigungen, welches Konto gemeint ist.
@@ -146,7 +166,7 @@ function accountHint(label) {
   return phone.lines.length > 1 && label ? `\nfür ${label}` : '';
 }
 
-// Gesperrter PC = nicht am Platz: abmelden, damit ein vergessenes SIP Phone (z. B. im Büro) nicht die
+// Gesperrter PC = nicht am Platz: abmelden, damit ein vergessenes mrphone (z. B. im Büro) nicht die
 // Anmeldung eines anderen Geräts (Homeoffice) zurückholt. Ein laufendes Gespräch geht vor.
 function applyScreenLock() {
   if (screenLocked && cfg.lockUnregister && !phone.call) phone.lock();
@@ -549,15 +569,16 @@ function ringtoneData() {
   }
 }
 
-// --- Sicherung: alles verschlüsselt exportieren und auf einem anderen SIP Phone wieder einspielen ---
+// --- Sicherung: alles verschlüsselt exportieren und auf einem anderen mrphone wieder einspielen ---
 
-const BACKUP_FILTERS = [{ name: 'SIP-Phone-Sicherung', extensions: ['sipphone'] }];
+// .sipphone: Sicherungen von vor der Umbenennung (gleiches Format)
+const BACKUP_FILTERS = [{ name: 'mrphone-Sicherung', extensions: ['mrphone', 'sipphone'] }];
 
 async function exportBackup(password) {
   if (String(password || '').length < MIN_PASSWORD) return { error: `Das Passwort braucht mindestens ${MIN_PASSWORD} Zeichen.` };
   const res = await dialog.showSaveDialog(win, {
     title: 'Sicherung speichern',
-    defaultPath: `SIP-Phone-Sicherung-${new Date().toISOString().slice(0, 10)}.sipphone`,
+    defaultPath: `mrphone-Sicherung-${new Date().toISOString().slice(0, 10)}.mrphone`,
     filters: BACKUP_FILTERS,
   });
   if (res.canceled || !res.filePath) return null;
@@ -565,7 +586,7 @@ async function exportBackup(password) {
     const { audio, ...settings } = cfg; // Audiogeräte heißen auf jedem PC anders -> bleiben außen vor
     const ringtone = ringtoneData();
     const payload = {
-      app: 'SIP Phone',
+      app: 'mrphone',
       version: app.getVersion(),
       createdAt: new Date().toISOString(),
       // Zugangsdaten im Klartext – geschützt durch die Verschlüsselung der Sicherung. Die DPAPI-Felder
@@ -725,7 +746,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(async () => {
     logFile = logger.setup(app.getPath('userData'));
-    console.log(`SIP Phone ${app.getVersion()} gestartet`);
+    console.log(`mrphone ${app.getVersion()} gestartet`);
     nativeTheme.themeSource = 'system';
     Menu.setApplicationMenu(null);
     protocol.handle('app', (req) => {

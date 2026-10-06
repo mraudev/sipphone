@@ -2,6 +2,11 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 1.26.0
+- **Neuer Name: mrphone** (vorher SIP Phone). Das Update spielt sich wie gewohnt ein: Konten, Kontakte, Verlauf und Einstellungen bleiben erhalten (der Datenordner heißt weiter „SIP Phone“), ebenso Installationsordner und Firewall-Freigaben. Die Startmenü-Verknüpfung heißt jetzt „mrphone“; ein ans Taskleiste angeheftetes Symbol muss eventuell neu angeheftet werden. Sicherungen werden als `.mrphone` gespeichert, ältere `.sipphone`-Dateien lassen sich weiter importieren.
+- **Neues App-Symbol:** amber mit schwarzem Hörer; das Logo in der Kopfzeile ist ebenfalls amber.
+- **Eigene Titelleiste:** Die Kopfzeile mit Logo und Knöpfen ist jetzt die Titelleiste (Fenster dort ziehen, Doppelklick maximiert); Minimieren, Maximieren und Schließen sitzen in derselben Zeile und passen sich hell/dunkel an. Dialoge öffnen sich unterhalb der Titelleiste.
+
 ## 1.25.1
 - **Keine Firewall-Abfrage mehr bei Gesprächen:** Die Sprach-Ports (RTP/RTCP) lauschen nur noch auf der Adresse, über die die Telefonanlage erreichbar ist – im Homeoffice die VPN-Adresse, im Büro die Adresse im Firmennetz. Vorher lauschten sie auf allen Netzen, und Windows fragte bei manchen Gesprächen nach einer Freigabe fürs Heimnetz. Ist die Adresse inzwischen weg (z. B. VPN neu verbunden), lauscht die App wie bisher auf allen Netzen, damit das Gespräch trotzdem zustande kommt.
 

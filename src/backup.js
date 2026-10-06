@@ -2,9 +2,9 @@
 const crypto = require('crypto');
 
 // Verschlüsselte Sicherung aller Daten (Konten samt Zugangsdaten, Kontakte, Kurzwahl, Verlauf,
-// Einstellungen), um sie auf einem anderen SIP Phone wieder einzuspielen. Schlüssel per scrypt aus
+// Einstellungen), um sie auf einem anderen mrphone wieder einzuspielen. Schlüssel per scrypt aus
 // einem frei gewählten Passwort, Inhalt mit AES-256-GCM (erkennt auch jede Veränderung der Datei).
-const FORMAT = 'sipphone-backup';
+const FORMAT = 'sipphone-backup'; // Kennung bleibt trotz Umbenennung in mrphone (alte Sicherungen)
 const VERSION = 1;
 const KDF = { N: 2 ** 16, r: 8, p: 1 };
 const MIN_PASSWORD = 8;
@@ -34,15 +34,15 @@ async function encryptBackup(payload, password) {
 }
 
 async function decryptBackup(buffer, password) {
-  if (buffer.length > MAX_FILE) throw new Error('Die Datei ist zu groß für eine SIP-Phone-Sicherung.');
+  if (buffer.length > MAX_FILE) throw new Error('Die Datei ist zu groß für eine mrphone-Sicherung.');
   let file;
   try {
     file = JSON.parse(buffer.toString('utf8'));
   } catch {
     file = null;
   }
-  if (!file || file.format !== FORMAT) throw new Error('Das ist keine SIP-Phone-Sicherung.');
-  if (file.version !== VERSION) throw new Error('Diese Sicherung stammt von einer neueren SIP-Phone-Version – bitte erst aktualisieren.');
+  if (!file || file.format !== FORMAT) throw new Error('Das ist keine mrphone-Sicherung.');
+  if (file.version !== VERSION) throw new Error('Diese Sicherung stammt von einer neueren mrphone-Version – bitte erst aktualisieren.');
   const kdf = file.kdf || {};
   // Nur plausible scrypt-Werte zulassen, sonst könnte eine präparierte Datei Speicher/Zeit ausreizen.
   if (kdf.name !== 'scrypt' || ![2 ** 14, 2 ** 15, 2 ** 16, 2 ** 17].includes(kdf.N) || kdf.r !== 8 || kdf.p !== 1) {

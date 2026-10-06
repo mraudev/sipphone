@@ -78,18 +78,34 @@ body { overflow: hidden; }
 .phone {
   height: 100vh;
   display: flex; flex-direction: column;
-  padding: 16px 22px 28px;
+  padding: 0 22px 28px;
 }
 .phone > * { flex: none; }
 .phone > .view { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
-.topbar { display: flex; align-items: center; justify-content: space-between; }
+/* Eigene Titelleiste: die Kopfzeile zieht das Fenster (Höhe = TITLEBAR_HEIGHT in src/main.js); rechts
+   bleibt Platz für die Fenster-Knöpfe, die Windows darüber zeichnet (env(titlebar-area-*)). */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 44px;
+  margin-right: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) - 16px));
+  -webkit-app-region: drag;
+  container: titlebar / inline-size;
+}
+.topbar button { -webkit-app-region: no-drag; }
+/* Zu schmal für Name + alle Knöpfe: nur das Logo zeigen */
+@container titlebar (max-width: 262px) {
+  .brand:has(+ .topbar-actions > #dndBtn:not([hidden])) span { display: none; }
+}
+@container titlebar (max-width: 186px) {
+  .brand span { display: none; }
+}
 .topbar-actions { display: flex; align-items: center; gap: 2px; }
 .icon-btn.spinning svg { animation: spin 0.7s linear; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0.2px; }
-.brand svg { color: var(--accent); font-size: 18px; }
+.brand svg { color: var(--amber); font-size: 18px; } /* passend zum App-Symbol */
 
 .icon-btn {
   display: grid; place-items: center;
@@ -488,6 +504,9 @@ dialog {
   border: 1px solid var(--line); border-radius: 20px;
   background: var(--bg-2); color: var(--text);
 }
+/* Dialoge nur unterhalb der Titelleiste (44 px): sonst ragt ein hoher Dialog unter die Fenster-Knöpfe
+   und in die Fläche, die das Fenster zieht. */
+dialog:modal { inset: 44px 0 0; max-height: calc(100vh - 44px - 24px); }
 dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(4px); }
 dialog h2 { margin: 0 0 18px; font-size: 18px; }
 .field { margin-bottom: 16px; }
