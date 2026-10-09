@@ -1,5 +1,11 @@
 # mrphone
 
+> **Umgezogen:** mrphone wird jetzt im Repository [mraudev/mrtools](https://github.com/mraudev/mrtools)
+> weiterentwickelt – Windows als neue Tauri-Version ([apps/mrphone](https://github.com/mraudev/mrtools/tree/main/apps/mrphone)),
+> Linux als diese Electron-Version ([apps/mrphone-linux](https://github.com/mraudev/mrtools/tree/main/apps/mrphone-linux),
+> mit der ganzen Historie). Installationen bis 2.0.0 bekommen über das Release v2.1.1 hier ein letztes Update,
+> das sie auf den neuen Update-Weg umstellt. Hier wird nichts mehr gebaut.
+
 Schlankes SIP-Softphone für Windows und Linux als Desktop-App (Electron), entwickelt für Asterisk-Telefonanlagen.
 
 ![Icon](assets/icon.png)
