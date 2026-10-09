@@ -838,9 +838,10 @@ if (!app.requestSingleInstanceLock()) {
     ipcMain.handle('phone:contacts', () => contactsView());
     ipcMain.handle('phone:saveContact', (_e, data) => {
       try {
-        contacts.upsert(data);
+        const contact = contacts.upsert(data);
         contactsChanged();
-        return null;
+        // Mit vorhandenem Kontakt gleichen Namens zusammengeführt: der Oberfläche Bescheid geben
+        return contact.merged !== undefined ? { merged: contact.name, added: contact.merged } : null;
       } catch (err) {
         return { error: err.message };
       }

@@ -1058,6 +1058,8 @@ async function saveContact(e) {
     return;
   }
   $('contactDialog').close();
+  // Name gab es schon: Nummer wurde beim vorhandenen Kontakt ergänzt (statt eines zweiten Kontakts)
+  if (res && res.merged) toast(res.added ? `Nummer bei „${res.merged}“ ergänzt` : `„${res.merged}“ hat diese Nummer bereits`);
 }
 
 async function deleteContact() {

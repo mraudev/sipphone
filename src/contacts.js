@@ -62,6 +62,17 @@ class Contacts {
       .filter((n) => normalizeNumber(n.number));
     if (!name) throw new Error('Bitte einen Namen eingeben.');
     if (!numbers.length) throw new Error('Bitte mindestens eine Telefonnummer eingeben.');
+    // Neuer Kontakt mit einem Namen, den es schon gibt (z. B. aus dem Verlauf übernommen): wie beim Import
+    // nur die fehlenden Nummern beim vorhandenen Kontakt ergänzen. Rückgabe dann mit merged = Anzahl neuer Nummern.
+    const sameName = !data.id && this.entries.find((c) => c.name.toLowerCase() === name.toLowerCase());
+    if (sameName) {
+      const known = new Set(sameName.numbers.map((n) => normalizeNumber(n.number)));
+      const fresh = numbers.filter((n) => !known.has(normalizeNumber(n.number)));
+      sameName.numbers.push(...fresh);
+      if (!sameName.company) sameName.company = String(data.company || '').trim();
+      this.save();
+      return { ...sameName, merged: fresh.length };
+    }
     const existing = data.id && this.entries.find((c) => c.id === data.id);
     const contact = { id: existing ? existing.id : crypto.randomUUID(), name, company: String(data.company || '').trim(), numbers, source: existing ? existing.source : 'manuell' };
     if (existing) this.entries[this.entries.indexOf(existing)] = contact;

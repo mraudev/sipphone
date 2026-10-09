@@ -2,6 +2,9 @@
 
 Zusammenfassung der Erweiterungen je Version, neueste zuerst. Die fertigen Installer liegen auf der [Release-Seite](https://github.com/mraudev/sipphone/releases).
 
+## 2.0.0
+- **Kontakt aus dem Verlauf zusammenführen:** Wer aus dem Verlauf (oder mit „+“) einen Kontakt anlegt, dessen Name schon im Telefonbuch steht, bekommt keinen zweiten Eintrag mehr – die neue Nummer wird beim vorhandenen Kontakt ergänzt, wie schon beim Import. Ein kurzer Hinweis zeigt, was passiert ist.
+
 ## 1.26.0
 - **Neuer Name: mrphone** (vorher SIP Phone). Das Update spielt sich wie gewohnt ein: Konten, Kontakte, Verlauf und Einstellungen bleiben erhalten (der Datenordner heißt weiter „SIP Phone“), ebenso Installationsordner und Firewall-Freigaben. Die Startmenü-Verknüpfung heißt jetzt „mrphone“; ein ans Taskleiste angeheftetes Symbol muss eventuell neu angeheftet werden. Sicherungen werden als `.mrphone` gespeichert, ältere `.sipphone`-Dateien lassen sich weiter importieren.
 - **Neues App-Symbol:** amber mit schwarzem Hörer; das Logo in der Kopfzeile ist ebenfalls amber.
